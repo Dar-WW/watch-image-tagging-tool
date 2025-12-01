@@ -284,8 +284,7 @@ def main():
         selected_label = st.selectbox(
             "Select watch:",
             options=watch_options,
-            index=manager.current_watch_index,
-            key="watch_selector"
+            index=manager.current_watch_index
         )
 
         # Update watch if selection changed
