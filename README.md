@@ -2,6 +2,18 @@
 
 A Streamlit-based web application for tagging and managing watch training images. This tool allows you to efficiently tag images with view types, quality ratings, zoom in to inspect details, and manage image datasets.
 
+## 🚀 Quick Start (TL;DR)
+
+**For teammates with Python already installed:**
+```bash
+git clone <your-repo-url>
+cd watch-image-tagging-tool
+./setup.sh
+./run_app.sh
+```
+
+**Don't have Python?** See [Prerequisites](#prerequisites) below for installation instructions.
+
 ## Features
 
 - 📸 **View images** in a 2-column grid layout with large, zoomable images
@@ -16,8 +28,83 @@ A Streamlit-based web application for tagging and managing watch training images
 
 ## Prerequisites
 
-- Python 3.9 or higher
-- pip (Python package installer)
+### Check if Python is Already Installed
+
+Before starting, check if you have Python installed:
+
+```bash
+python3 --version
+```
+
+If you see something like `Python 3.9.x` or higher, you're good to go! Skip to [Installation](#installation).
+
+If you get an error or have an older version, follow the installation instructions below.
+
+---
+
+### Installing Python
+
+**Required**: Python 3.9 or higher
+
+#### macOS
+
+**Option 1: Using Homebrew (Recommended)**
+```bash
+# Install Homebrew if you don't have it
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Install Python
+brew install python@3.9
+```
+
+**Option 2: Download from python.org**
+1. Go to [python.org/downloads](https://www.python.org/downloads/)
+2. Download the macOS installer (3.9 or higher)
+3. Run the installer and follow the instructions
+
+#### Windows
+
+**Option 1: Download from python.org (Recommended)**
+1. Go to [python.org/downloads](https://www.python.org/downloads/)
+2. Download the Windows installer (3.9 or higher)
+3. **Important**: Check "Add Python to PATH" during installation
+4. Run the installer and follow the instructions
+
+**Option 2: Using Microsoft Store**
+1. Open Microsoft Store
+2. Search for "Python 3.9" or higher
+3. Click "Get" to install
+
+#### Linux (Ubuntu/Debian)
+
+```bash
+sudo apt update
+sudo apt install python3.9 python3.9-venv python3-pip
+```
+
+#### Linux (Fedora/RedHat)
+
+```bash
+sudo dnf install python39 python39-pip
+```
+
+---
+
+### Verify Installation
+
+After installing Python, verify it works:
+
+```bash
+# Check Python version
+python3 --version
+
+# Check pip (package installer) is available
+pip3 --version
+```
+
+You should see version numbers for both commands.
+
+---
 
 ## Installation
 
