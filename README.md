@@ -21,7 +21,7 @@ A Streamlit-based web application for tagging and managing watch training images
 
 ## Installation
 
-### Option 1: Using pip (Recommended)
+### Quick Start (Recommended - with Virtual Environment)
 
 1. **Clone this repository:**
    ```bash
@@ -29,38 +29,70 @@ A Streamlit-based web application for tagging and managing watch training images
    cd watch-image-tagging-tool
    ```
 
-2. **Install dependencies:**
+2. **Run the setup script:**
    ```bash
-   pip install -r requirements.txt
+   chmod +x setup.sh
+   ./setup.sh
    ```
 
-3. **Add your images:**
-   Place your watch image folders in the `downloaded_images/` directory. Each watch should have its own folder (e.g., `PATEK_nab_001/`, `PATEK_nab_002/`, etc.).
+   This will:
+   - Create a Python virtual environment (`venv/`)
+   - Install all required dependencies
+   - Prepare the app for use
 
-   Expected structure:
-   ```
-   downloaded_images/
-   ├── PATEK_nab_001/
-   │   ├── PATEK_nab_001_01_face.jpg
-   │   ├── PATEK_nab_001_02_face.jpg
-   │   └── ...
-   ├── PATEK_nab_002/
-   │   └── ...
-   └── ...
-   ```
-
-4. **Run the app:**
+3. **Run the app:**
    ```bash
    ./run_app.sh
    ```
 
-   Or directly:
+   The launch script automatically activates the virtual environment and starts the app.
+
+---
+
+### Manual Setup Options
+
+#### Option 1: Using Virtual Environment (Manual)
+
+1. **Clone this repository:**
+   ```bash
+   git clone <your-repo-url>
+   cd watch-image-tagging-tool
+   ```
+
+2. **Create virtual environment:**
+   ```bash
+   python3 -m venv venv
+   ```
+
+3. **Activate virtual environment:**
+
+   On macOS/Linux:
+   ```bash
+   source venv/bin/activate
+   ```
+
+   On Windows:
+   ```bash
+   venv\Scripts\activate
+   ```
+
+4. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+5. **Run the app:**
+   ```bash
+   ./run_app.sh
+   ```
+
+   Or manually:
    ```bash
    cd tagging
    streamlit run app.py
    ```
 
-### Option 2: Using conda
+#### Option 2: Using conda
 
 1. **Clone this repository:**
    ```bash
@@ -79,12 +111,40 @@ A Streamlit-based web application for tagging and managing watch training images
    pip install -r requirements.txt
    ```
 
-4. **Add your images** (same as Option 1)
-
-5. **Run the app:**
+4. **Run the app:**
    ```bash
    ./run_app.sh
    ```
+
+#### Option 3: System Python (Not Recommended)
+
+Only use this if you understand Python dependency management:
+
+```bash
+git clone <your-repo-url>
+cd watch-image-tagging-tool
+pip install -r requirements.txt
+./run_app.sh
+```
+
+---
+
+### Image Data
+
+The repository includes all watch images in the `downloaded_images/` directory. The expected structure is:
+
+```
+downloaded_images/
+├── PATEK_nab_001/
+│   ├── PATEK_nab_001_01_face.jpg
+│   ├── PATEK_nab_001_02_face.jpg
+│   └── ...
+├── PATEK_nab_002/
+│   └── ...
+└── ...
+```
+
+If you need to add more images, place them in the appropriate watch folder following the naming convention.
 
 ## Usage Guide
 
