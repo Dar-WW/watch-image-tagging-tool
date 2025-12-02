@@ -232,3 +232,71 @@ class ImageManager:
             self.current_watch_index = index
             return True
         return False
+
+    def load_trash_images(self) -> dict:
+        """Load all deleted images from trash, organized by watch.
+
+        Returns:
+            Dictionary mapping watch_id to list of (ImageMetadata, deleted_time) tuples
+        """
+        trash_images = {}
+
+        if not os.path.exists(self.trash_dir):
+            return trash_images
+
+        for watch_id in os.listdir(self.trash_dir):
+            trash_watch_dir = os.path.join(self.trash_dir, watch_id)
+
+            if not os.path.isdir(trash_watch_dir):
+                continue
+
+            images = []
+            for filename in os.listdir(trash_watch_dir):
+                if not filename.endswith('.jpg'):
+                    continue
+
+                filepath = os.path.join(trash_watch_dir, filename)
+                metadata = parse_filename(filepath)
+
+                if metadata:
+                    # Get file modification time (when it was deleted)
+                    deleted_time = os.path.getmtime(filepath)
+                    images.append((metadata, deleted_time))
+
+            if images:
+                # Sort by deletion time, most recent first
+                images.sort(key=lambda x: x[1], reverse=True)
+                trash_images[watch_id] = images
+
+        return trash_images
+
+    def restore_image(self, image_meta: ImageMetadata) -> Tuple[bool, str]:
+        """Restore a deleted image from trash back to its original location.
+
+        Args:
+            image_meta: Image metadata (should point to trash location)
+
+        Returns:
+            Tuple of (success: bool, message: str)
+        """
+        trash_path = image_meta.full_path
+
+        if not os.path.exists(trash_path):
+            return False, f"File not found in trash: {trash_path}"
+
+        # Determine original location
+        watch_dir = os.path.join(self.images_dir, image_meta.watch_id)
+        dest_path = os.path.join(watch_dir, image_meta.filename)
+
+        # Check if destination already exists
+        if os.path.exists(dest_path):
+            return False, f"File already exists at destination: {image_meta.filename}"
+
+        # Ensure watch directory exists
+        os.makedirs(watch_dir, exist_ok=True)
+
+        try:
+            shutil.move(trash_path, dest_path)
+            return True, f"Restored: {image_meta.filename}"
+        except OSError as e:
+            return False, f"Failed to restore: {e}"

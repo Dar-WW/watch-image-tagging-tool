@@ -35,6 +35,9 @@ def init_session_state():
     if 'refresh_trigger' not in st.session_state:
         st.session_state.refresh_trigger = 0
 
+    if 'view_mode' not in st.session_state:
+        st.session_state.view_mode = "Tagging"
+
 
 def create_zoomable_image(img: Image.Image, filename: str = ""):
     """Create an interactive zoomable image using Plotly.
@@ -227,78 +230,164 @@ def render_navigation(manager, current_num, total_watches, key_suffix=""):
             st.rerun()
 
 
+def render_trash_view(manager):
+    """Render the trash view showing deleted images with restore option.
+
+    Args:
+        manager: ImageManager instance
+    """
+    from datetime import datetime
+
+    st.title("🗑️ Recently Deleted")
+    st.write("View and restore deleted images")
+
+    # Load trash images
+    trash_images = manager.load_trash_images()
+
+    if not trash_images:
+        st.info("No deleted images found. Deleted images will appear here.")
+        return
+
+    # Count total deleted images
+    total_deleted = sum(len(images) for images in trash_images.values())
+    st.write(f"**{total_deleted} deleted images across {len(trash_images)} watches**")
+
+    st.divider()
+
+    # Display by watch
+    for watch_id in sorted(trash_images.keys()):
+        images = trash_images[watch_id]
+
+        st.subheader(f"📁 {watch_id}")
+        st.write(f"{len(images)} deleted images")
+
+        # Display images in 3-column grid
+        num_cols = 3
+        cols = st.columns(num_cols)
+
+        for idx, (image_meta, deleted_time) in enumerate(images):
+            with cols[idx % num_cols]:
+                try:
+                    # Load and display image (smaller for grid view)
+                    img = Image.open(image_meta.full_path)
+                    st.image(img, use_container_width=True)
+
+                    # Show details
+                    st.caption(f"**{image_meta.filename}**")
+                    deleted_str = datetime.fromtimestamp(deleted_time).strftime("%Y-%m-%d %H:%M:%S")
+                    st.caption(f"🕒 Deleted: {deleted_str}")
+
+                    # Restore button
+                    if st.button("↩️ Restore", key=f"restore_{watch_id}_{idx}", use_container_width=True):
+                        success, message = manager.restore_image(image_meta)
+                        if success:
+                            st.success(message, icon="✅")
+                            st.session_state.refresh_trigger += 1
+                            st.rerun()
+                        else:
+                            st.error(message, icon="❌")
+
+                except Exception as e:
+                    st.error(f"Error loading image: {e}")
+
+        st.divider()
+
+
 def main():
     """Main application."""
     init_session_state()
 
     manager = st.session_state.manager
 
-    # Main content
+    # Sidebar - Mode selector at the top
+    with st.sidebar:
+        st.header("🎛️ View Mode")
+        view_mode = st.radio(
+            "Select view:",
+            options=["Tagging", "Trash"],
+            index=0 if st.session_state.view_mode == "Tagging" else 1,
+            label_visibility="collapsed"
+        )
+
+        # Update mode if changed
+        if view_mode != st.session_state.view_mode:
+            st.session_state.view_mode = view_mode
+            st.rerun()
+
+        st.divider()
+
+    # Render appropriate view based on mode
+    if st.session_state.view_mode == "Trash":
+        render_trash_view(manager)
+        return
+
+    # Main content - Tagging mode
     st.title("⌚ Watch Image Tagging Tool")
 
     # Get current watch info
     current_watch = manager.get_current_watch()
     current_num, total_watches = manager.get_progress()
 
-    # Sidebar
-    with st.sidebar:
-        st.header("📊 Statistics")
+    # Sidebar - Only show statistics and navigation in Tagging mode
+    if st.session_state.view_mode == "Tagging":
+        with st.sidebar:
+            st.header("📊 Statistics")
 
-        # Calculate statistics (cached to avoid recalculating on every interaction)
-        if 'stats' not in st.session_state or st.session_state.refresh_trigger > st.session_state.get('last_stats_refresh', -1):
-            st.session_state.stats = calculate_statistics(manager)
-            st.session_state.last_stats_refresh = st.session_state.refresh_trigger
+            # Calculate statistics (cached to avoid recalculating on every interaction)
+            if 'stats' not in st.session_state or st.session_state.refresh_trigger > st.session_state.get('last_stats_refresh', -1):
+                st.session_state.stats = calculate_statistics(manager)
+                st.session_state.last_stats_refresh = st.session_state.refresh_trigger
 
-        stats = st.session_state.stats
+            stats = st.session_state.stats
 
-        # Overall statistics
-        st.metric("Total Images", stats['total_images'])
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Tagged", stats['tagged_images'])
-        with col2:
-            st.metric("Untagged", stats['untagged_images'])
+            # Overall statistics
+            st.metric("Total Images", stats['total_images'])
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Tagged", stats['tagged_images'])
+            with col2:
+                st.metric("Untagged", stats['untagged_images'])
 
-        st.metric("Deleted", stats['deleted_images'])
+            st.metric("Deleted", stats['deleted_images'])
 
-        # Quality distribution
-        st.subheader("Quality Distribution")
-        st.write(f"🔴 Bad (q1): {stats['quality_counts'][1]}")
-        st.write(f"🟡 Partial (q2): {stats['quality_counts'][2]}")
-        st.write(f"🟢 Full (q3): {stats['quality_counts'][3]}")
+            # Quality distribution
+            st.subheader("Quality Distribution")
+            st.write(f"🔴 Bad (q1): {stats['quality_counts'][1]}")
+            st.write(f"🟡 Partial (q2): {stats['quality_counts'][2]}")
+            st.write(f"🟢 Full (q3): {stats['quality_counts'][3]}")
 
-        st.divider()
+            st.divider()
 
-        # Jump to watch
-        st.subheader("🎯 Jump to Watch")
+            # Jump to watch
+            st.subheader("🎯 Jump to Watch")
 
-        # Create watch options with progress
-        watch_options = []
-        for i, watch_id in enumerate(manager.watches):
-            progress = stats['watch_progress'].get(watch_id, {'tagged': 0, 'total': 0})
-            label = f"{watch_id} ({progress['tagged']}/{progress['total']})"
-            if progress['tagged'] == progress['total'] and progress['total'] > 0:
-                label += " ✓"
-            watch_options.append(label)
+            # Create watch options with progress
+            watch_options = []
+            for i, watch_id in enumerate(manager.watches):
+                progress = stats['watch_progress'].get(watch_id, {'tagged': 0, 'total': 0})
+                label = f"{watch_id} ({progress['tagged']}/{progress['total']})"
+                if progress['tagged'] == progress['total'] and progress['total'] > 0:
+                    label += " ✓"
+                watch_options.append(label)
 
-        selected_label = st.selectbox(
-            "Select watch:",
-            options=watch_options,
-            index=manager.current_watch_index
-        )
+            selected_label = st.selectbox(
+                "Select watch:",
+                options=watch_options,
+                index=manager.current_watch_index
+            )
 
-        # Update watch if selection changed
-        new_index = watch_options.index(selected_label)
-        if new_index != manager.current_watch_index:
-            manager.set_watch_index(new_index)
-            st.rerun()
+            # Update watch if selection changed
+            new_index = watch_options.index(selected_label)
+            if new_index != manager.current_watch_index:
+                manager.set_watch_index(new_index)
+                st.rerun()
 
-        st.divider()
+            st.divider()
 
-        # Refresh statistics button
-        if st.button("🔄 Refresh Statistics", use_container_width=True):
-            st.session_state.stats = calculate_statistics(manager)
-            st.rerun()
+            # Refresh statistics button
+            if st.button("🔄 Refresh Statistics", use_container_width=True):
+                st.session_state.stats = calculate_statistics(manager)
+                st.rerun()
 
     if not current_watch:
         st.warning("No watch folders found in downloaded_images/")
