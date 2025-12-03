@@ -138,6 +138,52 @@ def calculate_statistics(manager):
     return stats
 
 
+def calculate_filtered_watches(manager, quality_filters, view_type_filter, min_images=1):
+    """Calculate which watches meet the specified quality and view type criteria.
+
+    Args:
+        manager: ImageManager instance
+        quality_filters: List of quality values to include (e.g., [2, 3] for q2 and q3)
+        view_type_filter: "face" for face only, "both" for face + tiltface
+        min_images: Minimum number of matching images required per watch
+
+    Returns:
+        Dictionary with filtered results
+    """
+    results = {
+        'matching_watches': [],
+        'total_matching_images': 0,
+        'watch_details': {}
+    }
+
+    for watch_id in manager.watches:
+        images = manager.load_images(watch_id)
+
+        # Filter images based on criteria
+        matching_images = []
+        for img in images:
+            # Check quality
+            if img.quality not in quality_filters:
+                continue
+
+            # Check view type
+            if view_type_filter == "face" and img.view_type != "face":
+                continue
+
+            matching_images.append(img)
+
+        # Only include watch if it has at least min_images matching images
+        if len(matching_images) >= min_images:
+            results['matching_watches'].append(watch_id)
+            results['total_matching_images'] += len(matching_images)
+            results['watch_details'][watch_id] = {
+                'count': len(matching_images),
+                'images': matching_images
+            }
+
+    return results
+
+
 def render_image_card(image_meta: ImageMetadata, idx: int):
     """Render a single image card with tagging controls.
 
@@ -388,6 +434,67 @@ def main():
             if st.button("🔄 Refresh Statistics", use_container_width=True):
                 st.session_state.stats = calculate_statistics(manager)
                 st.rerun()
+
+            st.divider()
+
+            # Advanced Info - Filter criteria
+            with st.expander("🔍 Advanced Info", expanded=False):
+                st.write("**Filter Criteria**")
+                st.caption("Set requirements to see which watches qualify")
+
+                # Quality filters
+                st.write("**Quality Levels:**")
+                q1_check = st.checkbox("Bad (q1)", value=False, key="filter_q1")
+                q2_check = st.checkbox("Partial (q2)", value=False, key="filter_q2")
+                q3_check = st.checkbox("Full (q3)", value=True, key="filter_q3")
+
+                # Build quality filter list
+                quality_filters = []
+                if q1_check:
+                    quality_filters.append(1)
+                if q2_check:
+                    quality_filters.append(2)
+                if q3_check:
+                    quality_filters.append(3)
+
+                st.write("**View Type:**")
+                view_type_filter = st.radio(
+                    "Include:",
+                    options=["face", "both"],
+                    format_func=lambda x: "Face only" if x == "face" else "Face + Tiltface",
+                    key="filter_view_type"
+                )
+
+                st.write("**Minimum Images per Watch:**")
+                min_images = st.number_input(
+                    "At least:",
+                    min_value=1,
+                    max_value=20,
+                    value=2,
+                    step=1,
+                    key="filter_min_images",
+                    help="Watches must have at least this many images matching the criteria"
+                )
+
+                # Only calculate if at least one quality is selected
+                if quality_filters:
+                    st.divider()
+
+                    # Calculate filtered results
+                    filtered = calculate_filtered_watches(manager, quality_filters, view_type_filter, min_images)
+
+                    st.write("**Results:**")
+                    st.metric("Watches Meeting Criteria", len(filtered['matching_watches']))
+                    st.metric("Total Matching Images", filtered['total_matching_images'])
+
+                    # Show list of matching watches
+                    if filtered['matching_watches']:
+                        st.write("**Qualifying Watches:**")
+                        for watch_id in filtered['matching_watches']:
+                            count = filtered['watch_details'][watch_id]['count']
+                            st.write(f"• {watch_id} ({count} images)")
+                else:
+                    st.info("Select at least one quality level")
 
     if not current_watch:
         st.warning("No watch folders found in downloaded_images/")
