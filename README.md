@@ -290,6 +290,70 @@ Changes are saved immediately when you click a button.
 - Statistics update automatically when you make changes
 - Use "Refresh Statistics" button if needed
 
+### Alignment Annotation Mode
+
+The Alignment mode allows you to annotate 5 keypoints on each watch image for geometric alignment tasks. Uses an interactive canvas for precise point placement.
+
+**How to Use:**
+
+1. Switch to "Alignment" mode in the sidebar
+2. Select quality filters (which images to annotate)
+   - Bad (q1): Low detail quality images
+   - Partial (q2): Medium detail quality images
+   - Full (q3): High detail quality images
+3. Select annotation status filter
+   - All images: Show all images matching quality filter
+   - Only unlabeled: Show images without complete annotations
+   - Only labeled: Show images with all 5 keypoints annotated
+4. For each image, **click directly on the image** to place 5 points in order:
+   - **TOP**: Topmost point of watch face
+   - **LEFT**: Leftmost point of watch face
+   - **RIGHT**: Rightmost point of watch face
+   - **BOTTOM**: Bottommost point of watch face
+   - **CENTER**: Center point of watch face
+5. Annotations save automatically after the 5th point is clicked
+6. Use "Clear & Re-annotate" to redo any image
+
+**Visual Feedback:**
+- Each clicked point appears as a red dot on the image
+- Progress indicator shows which point to click next (e.g., "Click TOP (1/5)")
+- Status shows completion: "Points: 3/5" or "✅ 5/5 points annotated"
+- Previously placed points remain visible on the canvas
+
+**Annotation Storage:**
+- Annotations stored in `alignment_labels/{watch_id}.json`
+- Coordinates normalized to [0, 1] range for resolution independence
+- Each annotation includes:
+  - Normalized coordinates for all 5 keypoints
+  - Original image size (width, height)
+  - Timestamp (ISO8601 format)
+  - Annotator identifier
+
+**JSON Format Example:**
+```json
+{
+  "PATEK_nab_001_05_face_q3.jpg": {
+    "image_size": [1024, 768],
+    "coords_norm": {
+      "top": [0.50, 0.10],
+      "left": [0.20, 0.45],
+      "right": [0.80, 0.45],
+      "bottom": [0.50, 0.80],
+      "center": [0.50, 0.50]
+    },
+    "annotator": "unknown",
+    "timestamp": "2025-12-03T10:15:00Z"
+  }
+}
+```
+
+**Tips:**
+- Click precisely on the watch face boundaries for accurate keypoints
+- The canvas is in "point" mode - just click to place dots
+- Annotations persist across sessions - you can close and reopen the app
+- Re-annotating an image overwrites the previous annotation (no version history)
+- If you make a mistake, use "Clear & Re-annotate" to start over
+
 ## Filename Format
 
 Tagged images follow this format:
@@ -314,7 +378,12 @@ watch-image-tagging-tool/
 │   ├── app.py                  # Main Streamlit application
 │   ├── image_manager.py        # Core business logic & file operations
 │   ├── filename_parser.py      # Filename parsing/generation
+│   ├── alignment_manager.py    # Alignment annotation management
 │   └── README.md               # Detailed usage guide
+├── alignment_labels/           # Alignment annotations (JSON files)
+│   ├── PATEK_nab_001.json
+│   ├── PATEK_nab_002.json
+│   └── ...
 └── downloaded_images/          # Your watch images (one folder per watch)
     ├── PATEK_nab_001/
     ├── PATEK_nab_002/
@@ -354,8 +423,10 @@ watch-image-tagging-tool/
 
 - **UI Framework**: Streamlit
 - **Image Processing**: Pillow (PIL)
-- **Interactive Zoom**: Plotly
+- **Interactive Zoom**: Plotly (for tagging mode)
+- **Alignment Annotation**: streamlit-drawable-canvas (for precise point placement)
 - **File Operations**: Python standard library (os, shutil)
+- **Data Storage**: JSON files for alignment annotations
 
 ## License
 
