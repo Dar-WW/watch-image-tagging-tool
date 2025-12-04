@@ -292,7 +292,7 @@ Changes are saved immediately when you click a button.
 
 ### Alignment Annotation Mode
 
-The Alignment mode allows you to annotate 5 keypoints on each watch image for geometric alignment tasks. Uses an interactive canvas for precise point placement.
+The Alignment mode allows you to annotate 5 keypoints on each watch image for geometric alignment tasks. Simply click on the image to place keypoints in sequence.
 
 **How to Use:**
 
@@ -314,11 +314,21 @@ The Alignment mode allows you to annotate 5 keypoints on each watch image for ge
 5. Annotations save automatically after the 5th point is clicked
 6. Use "Clear & Re-annotate" to redo any image
 
+**Cross Helper Tool:**
+- Click "✛ Helper" button to show a rotatable cross overlay on the image
+- Two modes:
+  - **📍 Annotate Points**: Click to place keypoints (default mode)
+  - **🎯 Position Cross**: Click anywhere to move the cross center to that location
+- Use "🎛️ Fine-tune Controls" to adjust rotation, position, and size
+- The cross helps identify exact center points for precise annotation
+- Cross overlay does not interfere with clicks
+
 **Visual Feedback:**
-- Each clicked point appears as a red dot on the image
+- Each clicked point appears as a red X marker on the image with a label (T, L, R, B, C)
 - Progress indicator shows which point to click next (e.g., "Click TOP (1/5)")
 - Status shows completion: "Points: 3/5" or "✅ 5/5 points annotated"
-- Previously placed points remain visible on the canvas
+- Previously placed points remain visible on the image
+- Image is automatically sized to fit your screen
 
 **Annotation Storage:**
 - Annotations stored in `alignment_labels/{watch_id}.json`
@@ -349,10 +359,10 @@ The Alignment mode allows you to annotate 5 keypoints on each watch image for ge
 
 **Tips:**
 - Click precisely on the watch face boundaries for accurate keypoints
-- The canvas is in "point" mode - just click to place dots
 - Annotations persist across sessions - you can close and reopen the app
 - Re-annotating an image overwrites the previous annotation (no version history)
 - If you make a mistake, use "Clear & Re-annotate" to start over
+- The image is scaled to fit your screen, but coordinates are saved at full resolution
 
 ## Filename Format
 
@@ -424,7 +434,7 @@ watch-image-tagging-tool/
 - **UI Framework**: Streamlit
 - **Image Processing**: Pillow (PIL)
 - **Interactive Zoom**: Plotly (for tagging mode)
-- **Alignment Annotation**: streamlit-drawable-canvas (for precise point placement)
+- **Alignment Annotation**: streamlit-image-coordinates (for click-based point placement)
 - **File Operations**: Python standard library (os, shutil)
 - **Data Storage**: JSON files for alignment annotations
 

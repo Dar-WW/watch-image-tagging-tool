@@ -16,11 +16,13 @@ import plotly.graph_objects as go
 import streamlit.components.v1 as components
 import base64
 from io import BytesIO
+from streamlit_image_coordinates import streamlit_image_coordinates
 
 from image_manager import ImageManager
 from filename_parser import ImageMetadata
 from alignment_manager import AlignmentManager
-from typing import List
+from template_manager import TemplateManager
+from typing import List, Optional
 
 
 # Page configuration
@@ -47,6 +49,24 @@ def init_session_state():
     if 'alignment_manager' not in st.session_state:
         st.session_state.alignment_manager = AlignmentManager()
 
+    # Template manager
+    if 'template_manager' not in st.session_state:
+        st.session_state.template_manager = TemplateManager()
+
+    # Template annotation session
+    if 'template_annotation_session' not in st.session_state:
+        st.session_state.template_annotation_session = None
+        # Structure: {"points": [[x,y], ...], "image_size": (w,h)} or None
+
+    # Template clear counter
+    if 'template_clear_counter' not in st.session_state:
+        st.session_state.template_clear_counter = 0
+
+    # Preview visibility state (per image)
+    if 'preview_visible' not in st.session_state:
+        st.session_state.preview_visible = {}
+        # Structure: {filename: bool}
+
     # Alignment filters
     if 'alignment_quality_filter' not in st.session_state:
         st.session_state.alignment_quality_filter = [2, 3]  # Default: q2 and q3
@@ -63,6 +83,35 @@ def init_session_state():
         #       "image_size": (width, height)
         #   }
         # }
+
+    # Clear counter (per image) - incremented when clearing to reset component key
+    if 'annotation_clear_counter' not in st.session_state:
+        st.session_state.annotation_clear_counter = {}
+
+    # Cross position counter (per image) - incremented when moving cross to reset component
+    if 'cross_position_counter' not in st.session_state:
+        st.session_state.cross_position_counter = {}
+
+    # Cross helper settings (per image)
+    if 'cross_helper_enabled' not in st.session_state:
+        st.session_state.cross_helper_enabled = {}
+        # Structure: {"image_filename.jpg": True/False}
+
+    if 'cross_helper_settings' not in st.session_state:
+        st.session_state.cross_helper_settings = {}
+        # Structure: {
+        #   "image_filename.jpg": {
+        #       "x": 0.5,  # normalized position 0-1
+        #       "y": 0.5,  # normalized position 0-1
+        #       "rotation": 0,  # degrees
+        #       "size": 0.3  # relative to image size
+        #   }
+        # }
+
+    # Cross helper mode (per image): "annotate" or "position"
+    if 'cross_helper_mode' not in st.session_state:
+        st.session_state.cross_helper_mode = {}
+        # Structure: {"image_filename.jpg": "annotate" or "position"}
 
 
 def create_zoomable_image(img: Image.Image, filename: str = ""):
@@ -223,7 +272,7 @@ def render_image_card(image_meta: ImageMetadata, idx: int):
 
         # Display interactive zoomable image directly
         fig, config = create_zoomable_image(img, filename=image_meta.filename)
-        st.plotly_chart(fig, use_container_width=True, config=config, key=f"plot_{idx}")
+        st.plotly_chart(fig, width='stretch', config=config, key=f"plot_{idx}")
 
         # Show filename
         st.caption(f"**{image_meta.filename}**")
@@ -251,7 +300,7 @@ def render_image_card(image_meta: ImageMetadata, idx: int):
         for i, q in enumerate([1, 2, 3]):
             with quality_cols[i]:
                 button_type = "primary" if image_meta.quality == q else "secondary"
-                if st.button(quality_labels[q], key=f"qual_{idx}_{q}", type=button_type, use_container_width=True):
+                if st.button(quality_labels[q], key=f"qual_{idx}_{q}", type=button_type, width='stretch'):
                     quality = q
 
         # If quality button clicked or view type changed, rename file
@@ -268,7 +317,7 @@ def render_image_card(image_meta: ImageMetadata, idx: int):
                 st.error(message, icon="❌")
 
         # Delete button - direct deletion without confirmation
-        if st.button("🗑️ Delete", key=f"del_{idx}", type="secondary", use_container_width=True):
+        if st.button("🗑️ Delete", key=f"del_{idx}", type="secondary", width='stretch'):
             success, message = st.session_state.manager.delete_image(image_meta)
             if success:
                 st.success(message, icon="✅")
@@ -292,12 +341,12 @@ def render_navigation(manager, current_num, total_watches, key_suffix=""):
     """
     col1, col2, col3 = st.columns([1, 3, 1])
     with col1:
-        if st.button("◀ Previous", disabled=(current_num == 1), use_container_width=True, key=f"prev_{key_suffix}"):
+        if st.button("◀ Previous", disabled=(current_num == 1), width='stretch', key=f"prev_{key_suffix}"):
             manager.prev_watch()
             st.rerun()
 
     with col3:
-        if st.button("Next ▶", disabled=(current_num == total_watches), use_container_width=True, key=f"next_{key_suffix}"):
+        if st.button("Next ▶", disabled=(current_num == total_watches), width='stretch', key=f"next_{key_suffix}"):
             manager.next_watch()
             st.rerun()
 
@@ -342,7 +391,7 @@ def render_trash_view(manager):
                 try:
                     # Load and display image (smaller for grid view)
                     img = Image.open(image_meta.full_path)
-                    st.image(img, use_container_width=True)
+                    st.image(img, width='stretch')
 
                     # Show details
                     st.caption(f"**{image_meta.filename}**")
@@ -350,7 +399,7 @@ def render_trash_view(manager):
                     st.caption(f"🕒 Deleted: {deleted_str}")
 
                     # Restore button
-                    if st.button("↩️ Restore", key=f"restore_{watch_id}_{idx}", use_container_width=True):
+                    if st.button("↩️ Restore", key=f"restore_{watch_id}_{idx}", width='stretch'):
                         success, message = manager.restore_image(image_meta)
                         if success:
                             st.success(message, icon="✅")
@@ -380,113 +429,241 @@ def pil_to_base64(img: Image.Image) -> str:
     return f"data:image/png;base64,{img_str}"
 
 
-def clickable_image_with_button(img: Image.Image, existing_points: list, key: str, session_state):
-    """Create a clickable image that stores coordinates in session state.
+def draw_cross_helper(img: Image.Image, x_norm: float, y_norm: float, rotation: float, size: float) -> Image.Image:
+    """Draw a rotatable cross helper on the image.
+
+    Args:
+        img: PIL Image to draw on (will be copied)
+        x_norm: X position normalized to [0, 1]
+        y_norm: Y position normalized to [0, 1]
+        rotation: Rotation angle in degrees
+        size: Size relative to image (0-1, where 0.3 means 30% of image width)
+
+    Returns:
+        New PIL Image with cross overlay
+    """
+    from PIL import ImageDraw
+    import math
+
+    # Create a copy to avoid modifying original
+    img_copy = img.copy()
+    draw = ImageDraw.Draw(img_copy)
+
+    # Get image dimensions
+    width, height = img.size
+
+    # Calculate center point in pixels
+    cx = int(x_norm * width)
+    cy = int(y_norm * height)
+
+    # Calculate cross arm length based on size parameter
+    arm_length = int(min(width, height) * size)
+
+    # Convert rotation to radians
+    angle_rad = math.radians(rotation)
+
+    # Calculate endpoints for both lines of the cross
+    # Horizontal line (rotated)
+    h_dx = int(arm_length * math.cos(angle_rad))
+    h_dy = int(arm_length * math.sin(angle_rad))
+
+    # Vertical line (rotated 90 degrees from horizontal)
+    v_dx = int(arm_length * math.cos(angle_rad + math.pi/2))
+    v_dy = int(arm_length * math.sin(angle_rad + math.pi/2))
+
+    # Draw the cross with semi-transparent lines
+    # Horizontal line
+    draw.line(
+        [(cx - h_dx, cy - h_dy), (cx + h_dx, cy + h_dy)],
+        fill=(255, 255, 0, 200),  # Yellow
+        width=3
+    )
+
+    # Vertical line
+    draw.line(
+        [(cx - v_dx, cy - v_dy), (cx + v_dx, cy + v_dy)],
+        fill=(255, 255, 0, 200),  # Yellow
+        width=3
+    )
+
+    # Draw center circle
+    circle_radius = 5
+    draw.ellipse(
+        [(cx - circle_radius, cy - circle_radius),
+         (cx + circle_radius, cy + circle_radius)],
+        outline=(255, 255, 0, 255),
+        fill=(255, 255, 0, 128),
+        width=2
+    )
+
+    return img_copy
+
+
+def create_clickable_image(img: Image.Image, existing_points: list, key: str,
+                          cross_helper_settings: dict = None):
+    """Create a clickable image using streamlit-image-coordinates.
 
     Args:
         img: PIL Image to display
-        existing_points: List of [x, y] coordinates of existing points
+        existing_points: List of [x, y] coordinates of existing points (in original image coordinates)
         key: Unique key for this component
-        session_state: Streamlit session state
+        cross_helper_settings: Optional dict with cross helper settings
+                              {"x": float, "y": float, "rotation": float, "size": float}
 
     Returns:
-        Tuple of (clicked_x, clicked_y) or (None, None)
+        Dictionary with 'x' and 'y' keys if clicked (in original image coordinates), None otherwise
     """
-    # Convert image to base64
-    img_base64 = pil_to_base64(img)
-    width, height = img.size
+    from PIL import ImageDraw, ImageFont
 
-    # Create unique key for this image's click data
-    click_data_key = f"click_data_{key}"
+    # Get original image dimensions
+    orig_width, orig_height = img.size
 
-    # Create HTML with inline JavaScript
-    html_code = f"""
-    <div style="position: relative; display: inline-block; max-width: 100%;">
-        <img id="img-{key}" src="{img_base64}"
-             style="max-width: 100%; cursor: crosshair; display: block;"
-             onclick="handleImageClick(event, '{key}', {width}, {height})" />
-        <svg style="position: absolute; top: 0; left: 0; pointer-events: none; width: 100%; height: 100%;">
-    """
+    # Apply cross helper if settings provided
+    if cross_helper_settings:
+        img = draw_cross_helper(
+            img,
+            cross_helper_settings['x'],
+            cross_helper_settings['y'],
+            cross_helper_settings['rotation'],
+            cross_helper_settings['size']
+        )
 
-    # Draw existing points (scaled to percentage for responsiveness)
-    point_labels = ['T', 'L', 'R', 'B', 'C']
-    for i, (x, y) in enumerate(existing_points):
-        label = point_labels[i] if i < len(point_labels) else str(i+1)
-        x_pct = (x / width) * 100
-        y_pct = (y / height) * 100
-        html_code += f"""
-            <circle cx="{x_pct}%" cy="{y_pct}%" r="8" fill="red" stroke="white" stroke-width="2"/>
-            <text x="{x_pct}%" y="calc({y_pct}% - 12px)" text-anchor="middle" fill="white"
-                  style="font-size: 14px; font-weight: bold; paint-order: stroke;
-                         stroke: black; stroke-width: 3px;">{label}</text>
-        """
+    # Scale to a reasonable display width (larger than before but not overflowing)
+    display_width = 1100
 
-    html_code += f"""
-        </svg>
-    </div>
-    <div id="coords-{key}" style="margin-top: 5px; font-size: 14px; color: #666;">
-        Click on the image to place a point
-    </div>
-    <script>
-        function handleImageClick(event, key, origWidth, origHeight) {{
-            const img = event.target;
-            const rect = img.getBoundingClientRect();
+    # Calculate scale factor
+    scale = display_width / orig_width
+    display_height = int(orig_height * scale)
 
-            // Calculate click position relative to displayed image
-            const clickX = event.clientX - rect.left;
-            const clickY = event.clientY - rect.top;
+    # Resize image for display
+    img_display = img.resize((display_width, display_height), Image.Resampling.LANCZOS)
 
-            // Scale to original image dimensions
-            const scaleX = origWidth / rect.width;
-            const scaleY = origHeight / rect.height;
+    # Draw existing points on the display-sized image
+    draw = ImageDraw.Draw(img_display)
 
-            const x = Math.round(clickX * scaleX);
-            const y = Math.round(clickY * scaleY);
+    if existing_points:
+        point_labels = ['T', 'L', 'R', 'B', 'C']
+        for i, (x_orig, y_orig) in enumerate(existing_points):
+            label = point_labels[i] if i < len(point_labels) else str(i+1)
 
-            console.log('Click at:', x, y);
+            # Scale coordinates to display size
+            x = int(x_orig * scale)
+            y = int(y_orig * scale)
 
-            // Store in sessionStorage
-            const data = JSON.stringify({{x: x, y: y, timestamp: Date.now()}});
-            sessionStorage.setItem('click_' + key, data);
+            # Draw a red X marker (scaled size)
+            marker_size = int(20 * scale)
+            draw.line([(x - marker_size, y - marker_size), (x + marker_size, y + marker_size)],
+                     fill='red', width=max(2, int(4 * scale)))
+            draw.line([(x - marker_size, y + marker_size), (x + marker_size, y - marker_size)],
+                     fill='red', width=max(2, int(4 * scale)))
 
-            // Update display
-            document.getElementById('coords-' + key).innerHTML =
-                '<strong>Clicked at:</strong> (' + x + ', ' + y + ') - <em>Click "Add Point" button below</em>';
-            document.getElementById('coords-' + key).style.color = '#00AA00';
-        }}
-    </script>
-    """
+            # Draw white outline for text
+            text_y = y - int(30 * scale)
+            for offset_x in [-1, 0, 1]:
+                for offset_y in [-1, 0, 1]:
+                    draw.text((x + offset_x, text_y + offset_y), label, fill='black')
 
-    # Display the HTML
-    st.markdown(html_code, unsafe_allow_html=True)
+            # Draw label text in white
+            draw.text((x, text_y), label, fill='white')
 
-    # Add a button to confirm the click
-    if st.button("Add Point", key=f"btn_{key}", use_container_width=True):
-        # JavaScript to read from sessionStorage and pass to Streamlit
-        check_click_js = f"""
-        <script>
-            const data = sessionStorage.getItem('click_{key}');
-            if (data) {{
-                const coords = JSON.parse(data);
-                // Write to a hidden element that Streamlit can read
-                const input = document.createElement('div');
-                input.id = 'streamlit-click-{key}';
-                input.setAttribute('data-x', coords.x);
-                input.setAttribute('data-y', coords.y);
-                document.body.appendChild(input);
+    # Display image and capture clicks
+    value = streamlit_image_coordinates(
+        img_display,
+        key=key
+    )
 
-                // Clear storage
-                sessionStorage.removeItem('click_{key}');
-            }}
-        </script>
-        """
-        st.markdown(check_click_js, unsafe_allow_html=True)
+    # Process click - scale back to original image coordinates
+    if value is not None:
+        x_display = value.get('x')
+        y_display = value.get('y')
 
-        # Check if click data exists in session storage (via a hidden input approach)
-        # For now, return a signal that button was clicked
-        return "button_clicked"
+        if x_display is not None and y_display is not None:
+            # Scale coordinates back to original image size
+            x_orig = int(x_display / scale)
+            y_orig = int(y_display / scale)
+
+            # Make sure coordinates are within original image bounds
+            x_orig = max(0, min(x_orig, orig_width - 1))
+            y_orig = max(0, min(y_orig, orig_height - 1))
+
+            return {'x': x_orig, 'y': y_orig}
 
     return None
+
+
+def compute_homography_preview(
+    image: Image.Image,
+    image_coords_norm: dict,
+    template_coords_norm: dict,
+    template_size: tuple
+) -> Optional[Image.Image]:
+    """Compute homography and warp image to align with template.
+
+    Args:
+        image: PIL Image to warp
+        image_coords_norm: Normalized coordinates dict from image annotation
+                          Format: {"top": [x, y], "left": [x, y], ...}
+        template_coords_norm: Normalized coordinates dict from template annotation
+        template_size: (width, height) of template in pixels
+
+    Returns:
+        Warped PIL Image, or None if computation fails
+    """
+    import cv2
+    import numpy as np
+
+    # Convert normalized coords to pixel coordinates
+    img_width, img_height = image.size
+    template_width, template_height = template_size
+
+    # Use only the 4 edge points for homography (exclude center)
+    point_keys = ["top", "left", "right", "bottom"]
+
+    # Build source points (from image)
+    src_points = []
+    for key in point_keys:
+        x_norm, y_norm = image_coords_norm[key]
+        x_pixel = x_norm * img_width
+        y_pixel = y_norm * img_height
+        src_points.append([x_pixel, y_pixel])
+
+    # Build destination points (from template)
+    dst_points = []
+    for key in point_keys:
+        x_norm, y_norm = template_coords_norm[key]
+        x_pixel = x_norm * template_width
+        y_pixel = y_norm * template_height
+        dst_points.append([x_pixel, y_pixel])
+
+    # Convert to numpy arrays
+    src_points = np.array(src_points, dtype=np.float32)
+    dst_points = np.array(dst_points, dtype=np.float32)
+
+    try:
+        # Compute homography matrix
+        H, status = cv2.findHomography(src_points, dst_points, cv2.RANSAC, 5.0)
+
+        if H is None:
+            return None
+
+        # Convert PIL Image to numpy array
+        img_array = np.array(image)
+
+        # Warp image
+        warped = cv2.warpPerspective(
+            img_array,
+            H,
+            (template_width, template_height),
+            flags=cv2.INTER_LINEAR
+        )
+
+        # Convert back to PIL Image
+        warped_pil = Image.fromarray(warped)
+        return warped_pil
+
+    except Exception as e:
+        print(f"Error computing homography: {e}")
+        return None
 
 
 def filter_images_for_alignment(
@@ -530,6 +707,154 @@ def filter_images_for_alignment(
         filtered.append(img)
 
     return filtered
+
+
+def render_template_annotation_section(template_manager: TemplateManager, template_name: str = "nab"):
+    """Render expandable section for annotating template image.
+
+    Args:
+        template_manager: TemplateManager instance
+        template_name: Template name (default: "nab")
+    """
+    with st.expander("📐 Template Annotation", expanded=False):
+        st.write("**Annotate the template image with 5 keypoints**")
+        st.caption("This is done once and used for all alignment previews.")
+
+        # Load template image
+        template_path = template_manager.get_template_path(template_name)
+
+        if not os.path.exists(template_path):
+            st.error(f"Template image not found: {template_path}")
+            return
+
+        try:
+            template_img = Image.open(template_path)
+            template_size = template_img.size
+
+            # Check if template is already labeled
+            is_labeled = template_manager.is_template_labeled(template_name)
+
+            # Initialize or load session state
+            if st.session_state.template_annotation_session is None:
+                if is_labeled:
+                    # Already labeled - no active session
+                    st.session_state.template_annotation_session = None
+                else:
+                    # Start new session
+                    st.session_state.template_annotation_session = {
+                        "points": [],
+                        "image_size": template_size
+                    }
+
+            session = st.session_state.template_annotation_session
+
+            # Determine display state
+            if session is None and is_labeled:
+                # Show saved annotation
+                annotation = template_manager.load_template_annotations(template_name)
+                display_points = []
+                if annotation:
+                    coords = annotation["coords_norm"]
+                    for key in ["top", "left", "right", "bottom", "center"]:
+                        x_norm, y_norm = coords[key]
+                        display_points.append([x_norm * template_size[0], y_norm * template_size[1]])
+
+                num_points = 5
+                st.success("✅ Template annotated (5/5 points)", icon="✅")
+
+            elif session is not None:
+                # Active annotation
+                display_points = session["points"]
+                num_points = len(display_points)
+
+                if num_points < 5:
+                    point_names = ["TOP", "LEFT", "RIGHT", "BOTTOM", "CENTER"]
+                    current_point = point_names[num_points]
+                    st.info(f"📍 Click {current_point} ({num_points + 1}/5)", icon="📍")
+                st.caption(f"Points: {num_points}/5")
+            else:
+                # No session and not labeled (shouldn't happen)
+                display_points = []
+                num_points = 0
+
+            # Display clickable image
+            clear_counter = st.session_state.template_clear_counter
+            click_result = create_clickable_image(
+                template_img,
+                display_points,
+                f"template_{template_name}_{clear_counter}"
+            )
+
+            # Handle click event
+            if session is not None and click_result:
+                if isinstance(click_result, dict) and 'x' in click_result and 'y' in click_result:
+                    click_x = click_result['x']
+                    click_y = click_result['y']
+
+                    if len(session["points"]) < 5:
+                        # Check if new point (avoid duplicates)
+                        is_new_point = True
+                        if session["points"]:
+                            last_x, last_y = session["points"][-1]
+                            if abs(click_x - last_x) < 5 and abs(click_y - last_y) < 5:
+                                is_new_point = False
+
+                        if is_new_point:
+                            session["points"].append([click_x, click_y])
+
+                            # Check if complete
+                            if len(session["points"]) == 5:
+                                # Build coords dict
+                                coords_pixel = {
+                                    "top": session["points"][0],
+                                    "left": session["points"][1],
+                                    "right": session["points"][2],
+                                    "bottom": session["points"][3],
+                                    "center": session["points"][4]
+                                }
+
+                                # Save annotation
+                                success, message = template_manager.save_template_annotations(
+                                    template_name,
+                                    coords_pixel,
+                                    template_size
+                                )
+
+                                if success:
+                                    st.success("✅ Template annotation saved!", icon="✅")
+                                    st.session_state.template_annotation_session = None
+                                    st.rerun()
+                                else:
+                                    st.error(f"❌ Failed to save: {message}", icon="❌")
+                            else:
+                                st.rerun()
+
+            # Undo and Clear buttons side by side
+            col1, col2 = st.columns([1, 1])
+
+            with col1:
+                # Undo button - only show if there are points to undo
+                has_points = session is not None and len(session.get("points", [])) > 0
+                if has_points:
+                    if st.button("↩️ Undo Last Point", key="undo_template", use_container_width=True):
+                        # Remove last point from session
+                        session["points"].pop()
+                        st.session_state.template_clear_counter += 1
+                        st.rerun()
+
+            with col2:
+                # Clear button
+                if st.button("🔄 Clear & Re-annotate Template", key="clear_template", use_container_width=True):
+                    st.session_state.template_annotation_session = {
+                        "points": [],
+                        "image_size": template_size
+                    }
+                    st.session_state.template_clear_counter += 1
+                    template_manager.clear_template_annotations(template_name)
+                    st.rerun()
+
+        except Exception as e:
+            st.error(f"❌ Error loading template: {e}")
 
 
 def create_alignment_image(img: Image.Image, filename: str, points: list, num_points: int):
@@ -644,37 +969,152 @@ def render_alignment_card(
             num_points = len(session["points"])
             display_points = session["points"]
 
-        # Display filename
-        st.caption(f"**{image_meta.filename}**")
+        # Display filename and cross helper toggle
+        col_filename, col_helper = st.columns([3, 1])
+        with col_filename:
+            st.caption(f"**{image_meta.filename}**")
+        with col_helper:
+            # Toggle button for cross helper
+            is_helper_enabled = st.session_state.cross_helper_enabled.get(session_key, False)
+            if st.button("✛ Helper" if not is_helper_enabled else "✛ Hide",
+                        key=f"helper_toggle_{idx}",
+                        type="primary" if is_helper_enabled else "secondary",
+                        width='stretch'):
+                st.session_state.cross_helper_enabled[session_key] = not is_helper_enabled
+                st.rerun()
 
-        # Show instruction for unlabeled images
-        if not is_labeled:
-            point_names = ["TOP", "LEFT", "RIGHT", "BOTTOM", "CENTER"]
-            if num_points < 5:
-                current_point = point_names[num_points]
-                st.info(f"📍 Click {current_point} ({num_points + 1}/5)", icon="📍")
-            st.caption(f"Points: {num_points}/5")
-            st.caption("💡 Click directly on the image to place the keypoint")
+        # Cross helper controls (if enabled)
+        cross_settings = None
+        helper_enabled = st.session_state.cross_helper_enabled.get(session_key, False)
+
+        if helper_enabled:
+            # Initialize default settings if not present
+            if session_key not in st.session_state.cross_helper_settings:
+                st.session_state.cross_helper_settings[session_key] = {
+                    "x": 0.5,
+                    "y": 0.5,
+                    "rotation": 0,
+                    "size": 0.3
+                }
+
+            # Initialize mode if not present
+            if session_key not in st.session_state.cross_helper_mode:
+                st.session_state.cross_helper_mode[session_key] = "position"
+
+            # Mode toggle (only show if not fully labeled)
+            if not is_labeled:
+                current_mode = st.session_state.cross_helper_mode.get(session_key, "position")
+                mode_col1, mode_col2 = st.columns(2)
+
+                with mode_col1:
+                    if st.button("📍 Annotate Points",
+                                key=f"mode_annotate_{idx}",
+                                type="primary" if current_mode == "annotate" else "secondary",
+                                width='stretch'):
+                        st.session_state.cross_helper_mode[session_key] = "annotate"
+                        st.rerun()
+
+                with mode_col2:
+                    if st.button("🎯 Position Cross",
+                                key=f"mode_position_{idx}",
+                                type="primary" if current_mode == "position" else "secondary",
+                                width='stretch'):
+                        st.session_state.cross_helper_mode[session_key] = "position"
+                        st.rerun()
+
+                # Show instruction based on mode
+                point_names = ["TOP", "LEFT", "RIGHT", "BOTTOM", "CENTER"]
+                if current_mode == "annotate":
+                    if num_points < 5:
+                        current_point = point_names[num_points]
+                        st.info(f"📍 Click {current_point} ({num_points + 1}/5)", icon="📍")
+                    st.caption(f"Points: {num_points}/5")
+                else:
+                    st.warning("🎯 POSITION MODE: Click anywhere on the image to move the cross", icon="🎯")
+                    current_settings = st.session_state.cross_helper_settings[session_key]
+                    st.caption(f"Cross at: ({current_settings['x']:.2f}, {current_settings['y']:.2f}) | Rotation: {current_settings['rotation']}°")
+            else:
+                st.caption(f"Points: {num_points}/5")
+
+            # Cross helper fine-tune controls in expander
+            with st.expander("🎛️ Fine-tune Controls", expanded=False):
+                current_settings = st.session_state.cross_helper_settings[session_key]
+
+                col1, col2 = st.columns(2)
+                with col1:
+                    x_pos = st.slider("X Position", 0.0, 1.0, current_settings["x"],
+                                     0.01, key=f"cross_x_{idx}")
+                    rotation = st.slider("Rotation (°)", 0, 359, current_settings["rotation"],
+                                        1, key=f"cross_rot_{idx}")
+                with col2:
+                    y_pos = st.slider("Y Position", 0.0, 1.0, current_settings["y"],
+                                     0.01, key=f"cross_y_{idx}")
+                    size = st.slider("Size", 0.1, 0.6, current_settings["size"],
+                                    0.05, key=f"cross_size_{idx}")
+
+                # Update settings
+                st.session_state.cross_helper_settings[session_key] = {
+                    "x": x_pos,
+                    "y": y_pos,
+                    "rotation": rotation,
+                    "size": size
+                }
+
+            cross_settings = st.session_state.cross_helper_settings[session_key]
+        else:
+            # Helper not enabled - show normal instruction for unlabeled images
+            if not is_labeled:
+                point_names = ["TOP", "LEFT", "RIGHT", "BOTTOM", "CENTER"]
+                if num_points < 5:
+                    current_point = point_names[num_points]
+                    st.info(f"📍 Click {current_point} ({num_points + 1}/5)", icon="📍")
+                st.caption(f"Points: {num_points}/5")
+
+        # Get clear counter for this image (used to reset component state)
+        clear_counter = st.session_state.annotation_clear_counter.get(session_key, 0)
+        # Get cross position counter (used to reset component when cross moves)
+        cross_counter = st.session_state.cross_position_counter.get(session_key, 0)
 
         # Display clickable image with existing points
-        click_result = clickable_image(img, display_points, f"click_{idx}")
-
-        # DEBUG: Show what we received
-        st.write(f"DEBUG - click_result: {click_result}")
-        st.write(f"DEBUG - click_result type: {type(click_result)}")
+        # Include both counters in key to force component reset when cleared or cross moved
+        click_result = create_clickable_image(
+            img,
+            display_points,
+            f"click_{idx}_{clear_counter}_{cross_counter}",
+            cross_helper_settings=cross_settings
+        )
 
         # Handle click event
-        if not is_labeled and session is not None and click_result:
-            # Check if we got valid coordinates
-            if isinstance(click_result, dict) and 'x' in click_result and 'y' in click_result:
-                click_x = int(click_result['x'])
-                click_y = int(click_result['y'])
+        if click_result and isinstance(click_result, dict) and 'x' in click_result and 'y' in click_result:
+            click_x = click_result['x']
+            click_y = click_result['y']
 
-                st.write(f"DEBUG - Got coordinates: ({click_x}, {click_y})")
+            # Check current mode
+            current_mode = st.session_state.cross_helper_mode.get(session_key, "position")
 
+            # Mode 1: Position Cross - move the cross to clicked position
+            if helper_enabled and current_mode == "position":
+                # Convert pixel coordinates to normalized [0, 1]
+                x_norm = click_x / img_size[0]
+                y_norm = click_y / img_size[1]
+
+                # Update cross position
+                if session_key in st.session_state.cross_helper_settings:
+                    st.session_state.cross_helper_settings[session_key]["x"] = x_norm
+                    st.session_state.cross_helper_settings[session_key]["y"] = y_norm
+                    # Increment counter to reset component
+                    current_cross_counter = st.session_state.cross_position_counter.get(session_key, 0)
+                    st.session_state.cross_position_counter[session_key] = current_cross_counter + 1
+                    st.success(f"✅ Cross moved to ({x_norm:.2f}, {y_norm:.2f})", icon="🎯")
+                    st.rerun()
+                else:
+                    st.error("Debug: Settings not found", icon="⚠️")
+
+            # Mode 2: Annotate Points - place keypoints
+            elif not is_labeled and session is not None:
                 # Check if this is a new point (not already in session)
                 if len(session["points"]) < 5:
-                    # Check if this point is different from the last one
+                    # Check if this point is different from the last one (avoid duplicates from re-renders)
                     is_new_point = True
                     if session["points"]:
                         last_x, last_y = session["points"][-1]
@@ -719,16 +1159,93 @@ def render_alignment_card(
         if is_labeled:
             st.success(f"✅ 5/5 points annotated", icon="✅")
 
-        # Clear/Re-annotate button
-        if st.button("🔄 Clear & Re-annotate", key=f"clear_{idx}", use_container_width=True):
-            # Reset session
-            st.session_state.current_annotation_session[session_key] = {
-                "points": [],
-                "image_size": img_size
-            }
-            # Clear from JSON
-            alignment_manager.clear_image_annotation(watch_id, image_meta.filename)
-            st.rerun()
+        # Undo and Clear buttons side by side
+        col1, col2 = st.columns([1, 1])
+
+        with col1:
+            # Undo button - only show if there are points to undo
+            has_points = session is not None and len(session.get("points", [])) > 0
+            if has_points:
+                if st.button("↩️ Undo Last Point", key=f"undo_{idx}", use_container_width=True):
+                    # Remove last point from session
+                    session["points"].pop()
+                    # Increment clear counter to force component reset with new key
+                    current_counter = st.session_state.annotation_clear_counter.get(session_key, 0)
+                    st.session_state.annotation_clear_counter[session_key] = current_counter + 1
+                    st.rerun()
+
+        with col2:
+            # Clear/Re-annotate button
+            if st.button("🔄 Clear & Re-annotate", key=f"clear_{idx}", use_container_width=True):
+                # Reset session
+                st.session_state.current_annotation_session[session_key] = {
+                    "points": [],
+                    "image_size": img_size
+                }
+                # Increment clear counter to force component reset with new key
+                current_counter = st.session_state.annotation_clear_counter.get(session_key, 0)
+                st.session_state.annotation_clear_counter[session_key] = current_counter + 1
+                # Clear from JSON
+                alignment_manager.clear_image_annotation(watch_id, image_meta.filename)
+                st.rerun()
+
+        # Preview Alignment button (only if fully annotated)
+        if is_labeled:
+            st.divider()
+
+            template_manager = st.session_state.template_manager
+            template_name = "nab"
+
+            # Check if template is annotated
+            if not template_manager.is_template_labeled(template_name):
+                st.warning("⚠️ Template not annotated. Annotate template above to enable preview.")
+            else:
+                # Toggle preview button
+                preview_key = image_meta.filename
+                is_preview_visible = st.session_state.preview_visible.get(preview_key, False)
+
+                button_label = "👁️ Hide Preview" if is_preview_visible else "👁️ Preview Alignment"
+
+                if st.button(button_label, key=f"preview_{idx}", width='stretch'):
+                    st.session_state.preview_visible[preview_key] = not is_preview_visible
+                    st.rerun()
+
+                # Show preview if visible
+                if st.session_state.preview_visible.get(preview_key, False):
+                    st.write("**Alignment Preview:**")
+
+                    # Load annotations
+                    template_annotation = template_manager.load_template_annotations(template_name)
+                    template_path = template_manager.get_template_path(template_name)
+                    template_img = Image.open(template_path)
+                    template_size = template_img.size
+
+                    image_annotation = alignment_manager.get_image_annotation(watch_id, image_meta.filename)
+
+                    if template_annotation and image_annotation:
+                        # Compute homography and warp
+                        warped_img = compute_homography_preview(
+                            img,
+                            image_annotation["coords_norm"],
+                            template_annotation["coords_norm"],
+                            template_size
+                        )
+
+                        if warped_img:
+                            # Display side-by-side
+                            col1, col2 = st.columns([1, 1])
+
+                            with col1:
+                                st.caption("**Original Image**")
+                                st.image(img, width='stretch')
+
+                            with col2:
+                                st.caption("**Warped to Template**")
+                                st.image(warped_img, width='stretch')
+
+                            st.caption("💡 The warped image shows how the watch aligns with the template")
+                        else:
+                            st.error("❌ Failed to compute alignment preview")
 
     except Exception as e:
         st.error(f"❌ Error rendering alignment card: {e}")
@@ -751,6 +1268,10 @@ def render_alignment_view(manager: ImageManager, alignment_manager: AlignmentMan
 
     # Top navigation
     render_navigation(manager, current_num, total_watches, key_suffix="align_top")
+    st.divider()
+
+    # Template annotation section
+    render_template_annotation_section(st.session_state.template_manager)
     st.divider()
 
     # Load images for current watch
@@ -944,7 +1465,7 @@ def main():
             st.divider()
 
             # Refresh statistics button
-            if st.button("🔄 Refresh Statistics", use_container_width=True):
+            if st.button("🔄 Refresh Statistics", width='stretch'):
                 st.session_state.stats = calculate_statistics(manager)
                 st.rerun()
 

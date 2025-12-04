@@ -307,24 +307,29 @@ These are useful to keep in mind but are explicitly **out of scope** for the fir
 
 **Issue Encountered**: Plotly's `on_select` is designed to select existing data points in traces (scatter plots, etc.), not to capture arbitrary clicks on the underlying image. Testing revealed that clicks on the image background returned empty point arrays.
 
-**Final Solution**: Switched to `streamlit-drawable-canvas` library.
-- **Why**: Purpose-built for image annotation with precise click/drawing detection
-- **Benefit**: Captures exact pixel coordinates on click events
-- **Tradeoff**: Added one new dependency (streamlit-drawable-canvas>=0.9.0)
-- **Result**: Clean, reliable point placement with visual feedback
+**Attempted Solutions**:
+1. Plotly with `on_select` - didn't capture background clicks
+2. `streamlit-drawable-canvas` - incompatibility with Streamlit 1.50.0
+3. `streamlit-plotly-events` - component registration issues, image display problems
+
+**Final Solution**: Switched to `streamlit-image-coordinates` library.
+- **Why**: Purpose-built for capturing click coordinates on images in Streamlit
+- **Benefit**: Simple API, captures exact pixel coordinates on any click
+- **Implementation**: Draw existing points directly on the image using PIL's `ImageDraw`
+- **Result**: Clean, reliable click capture with visual feedback
 
 ### Updated Dependencies
 
 Added to `requirements.txt`:
 ```
-streamlit-drawable-canvas>=0.9.0
+streamlit-image-coordinates
 ```
 
-The canvas provides:
-- Point drawing mode for click-to-annotate
-- Visual display of all placed points
-- Accurate coordinate capture
-- No pan/zoom distractions
+The library provides:
+- Direct click coordinate capture on images
+- Automatic scaling and coordinate normalization
+- Simple integration with Streamlit
+- Reliable cross-browser compatibility
 
 ## 9. Definition of Done
 
