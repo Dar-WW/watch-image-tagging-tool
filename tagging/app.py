@@ -755,7 +755,7 @@ def render_template_annotation_section(template_manager: TemplateManager, templa
                 display_points = []
                 if annotation:
                     coords = annotation["coords_norm"]
-                    for key in ["top", "left", "right", "bottom", "center"]:
+                    for key in ["top", "bottom", "left", "right", "center"]:
                         x_norm, y_norm = coords[key]
                         display_points.append([x_norm * template_size[0], y_norm * template_size[1]])
 
@@ -960,7 +960,7 @@ def render_alignment_card(
             if existing:
                 coords = existing["coords_norm"]
                 # Convert normalized back to pixels for overlay
-                for key in ["top", "left", "right", "bottom", "center"]:
+                for key in ["top", "bottom", "left", "right", "center"]:
                     x_norm, y_norm = coords[key]
                     display_points.append([x_norm * img_size[0], y_norm * img_size[1]])
         else:
