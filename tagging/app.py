@@ -542,7 +542,7 @@ def create_clickable_image(img: Image.Image, existing_points: list, key: str,
     draw = ImageDraw.Draw(img_display)
 
     if existing_points:
-        point_labels = ['T', 'L', 'R', 'B', 'C']
+        point_labels = ['T', 'B', 'L', 'R', 'C']
         for i, (x_orig, y_orig) in enumerate(existing_points):
             label = point_labels[i] if i < len(point_labels) else str(i+1)
 
@@ -768,7 +768,7 @@ def render_template_annotation_section(template_manager: TemplateManager, templa
                 num_points = len(display_points)
 
                 if num_points < 5:
-                    point_names = ["TOP", "LEFT", "RIGHT", "BOTTOM", "CENTER"]
+                    point_names = ["TOP", "BOTTOM", "LEFT", "RIGHT", "CENTER"]
                     current_point = point_names[num_points]
                     st.info(f"📍 Click {current_point} ({num_points + 1}/5)", icon="📍")
                 st.caption(f"Points: {num_points}/5")
@@ -807,9 +807,9 @@ def render_template_annotation_section(template_manager: TemplateManager, templa
                                 # Build coords dict
                                 coords_pixel = {
                                     "top": session["points"][0],
-                                    "left": session["points"][1],
-                                    "right": session["points"][2],
-                                    "bottom": session["points"][3],
+                                    "bottom": session["points"][1],
+                                    "left": session["points"][2],
+                                    "right": session["points"][3],
                                     "center": session["points"][4]
                                 }
 
@@ -878,7 +878,7 @@ def create_alignment_image(img: Image.Image, filename: str, points: list, num_po
     if points:
         x_coords = [p[0] for p in points]
         y_coords = [p[1] for p in points]
-        point_labels = ['T', 'L', 'R', 'B', 'C'][:len(points)]
+        point_labels = ['T', 'B', 'L', 'R', 'C'][:len(points)]
 
         fig.add_trace(go.Scatter(
             x=x_coords,
@@ -994,7 +994,7 @@ def render_alignment_card(
                     "x": 0.5,
                     "y": 0.5,
                     "rotation": 0,
-                    "size": 0.3
+                    "size": 0.45
                 }
 
             # Initialize mode if not present
@@ -1023,7 +1023,7 @@ def render_alignment_card(
                         st.rerun()
 
                 # Show instruction based on mode
-                point_names = ["TOP", "LEFT", "RIGHT", "BOTTOM", "CENTER"]
+                point_names = ["TOP", "BOTTOM", "LEFT", "RIGHT", "CENTER"]
                 if current_mode == "annotate":
                     if num_points < 5:
                         current_point = point_names[num_points]
@@ -1064,7 +1064,7 @@ def render_alignment_card(
         else:
             # Helper not enabled - show normal instruction for unlabeled images
             if not is_labeled:
-                point_names = ["TOP", "LEFT", "RIGHT", "BOTTOM", "CENTER"]
+                point_names = ["TOP", "BOTTOM", "LEFT", "RIGHT", "CENTER"]
                 if num_points < 5:
                     current_point = point_names[num_points]
                     st.info(f"📍 Click {current_point} ({num_points + 1}/5)", icon="📍")
@@ -1130,9 +1130,9 @@ def render_alignment_card(
                             # Build coords dict
                             coords_pixel = {
                                 "top": session["points"][0],
-                                "left": session["points"][1],
-                                "right": session["points"][2],
-                                "bottom": session["points"][3],
+                                "bottom": session["points"][1],
+                                "left": session["points"][2],
+                                "right": session["points"][3],
                                 "center": session["points"][4]
                             }
 
