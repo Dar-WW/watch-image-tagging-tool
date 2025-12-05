@@ -115,8 +115,10 @@ downloaded_images/
 
 - **UI Framework**: Streamlit
 - **Image Processing**: Pillow (PIL)
-- **Interactive Zoom**: Plotly
+- **Interactive Zoom**: Plotly (for tagging mode)
+- **Alignment Annotation**: streamlit-image-coordinates (for click-based point placement)
 - **File Operations**: Python standard library (os, shutil)
+- **Data Storage**: JSON files for alignment annotations
 
 ## Tips
 
