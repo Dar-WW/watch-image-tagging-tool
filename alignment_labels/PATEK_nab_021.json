@@ -1,5 +1,5 @@
 {
-  "PATEK_nab_021_01_face_q3.jpg": {
+  "PATEK_nab_021_01": {
     "image_size": [
       800,
       800
@@ -29,7 +29,7 @@
     "annotator": "unknown",
     "timestamp": "2025-12-04T14:11:30.641893+00:00"
   },
-  "PATEK_nab_021_07_tiltface_q2.jpg": {
+  "PATEK_nab_021_07": {
     "image_size": [
       800,
       800
@@ -59,7 +59,7 @@
     "annotator": "unknown",
     "timestamp": "2025-12-04T14:14:23.431816+00:00"
   },
-  "PATEK_nab_021_13_face_q3.jpg": {
+  "PATEK_nab_021_13": {
     "image_size": [
       800,
       800

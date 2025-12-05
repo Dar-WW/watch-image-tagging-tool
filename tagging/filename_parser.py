@@ -97,3 +97,40 @@ def extract_watch_id(filename: str) -> Optional[str]:
     pattern = r'^(.+?)_\d{2}_'
     match = re.match(pattern, filename)
     return match.group(1) if match else None
+
+
+def get_image_id(filename: str) -> Optional[str]:
+    """Extract quality-agnostic image ID from filename.
+
+    This removes the quality tag and file extension, returning just the
+    unique identifier for the image regardless of quality rating.
+
+    Args:
+        filename: Image filename (e.g., "PATEK_nab_041_05_tiltface_q3.jpg")
+
+    Returns:
+        Image ID without quality tag (e.g., "PATEK_nab_041_05")
+        None if filename doesn't match expected pattern
+
+    Examples:
+        >>> get_image_id("PATEK_nab_041_05_tiltface_q3.jpg")
+        "PATEK_nab_041_05"
+        >>> get_image_id("PATEK_nab_041_05_face.jpg")
+        "PATEK_nab_041_05"
+    """
+    # Pattern with quality tag: PATEK_nab_042_04_face_q3.jpg
+    pattern_tagged = r'^(.+?)_(\d{2})_(face|tiltface)_q[123]\.jpg$'
+    match = re.match(pattern_tagged, filename)
+
+    if match:
+        # Return watch_id + view_number (e.g., "PATEK_nab_041_05")
+        return f"{match.group(1)}_{match.group(2)}"
+
+    # Pattern without quality tag (legacy): PATEK_nab_042_04_face.jpg
+    pattern_legacy = r'^(.+?)_(\d{2})_(face|tiltface)\.jpg$'
+    match = re.match(pattern_legacy, filename)
+
+    if match:
+        return f"{match.group(1)}_{match.group(2)}"
+
+    return None  # Malformed filename

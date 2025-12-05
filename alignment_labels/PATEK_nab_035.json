@@ -1,5 +1,5 @@
 {
-  "PATEK_nab_035_04_face_q2.jpg": {
+  "PATEK_nab_035_04": {
     "image_size": [
       1920,
       2560
@@ -29,7 +29,7 @@
     "annotator": "unknown",
     "timestamp": "2025-12-04T15:22:09.004404+00:00"
   },
-  "PATEK_nab_035_05_face_q2.jpg": {
+  "PATEK_nab_035_05": {
     "image_size": [
       1920,
       2560
@@ -59,7 +59,7 @@
     "annotator": "unknown",
     "timestamp": "2025-12-04T15:22:45.285077+00:00"
   },
-  "PATEK_nab_035_08_face_q3.jpg": {
+  "PATEK_nab_035_08": {
     "image_size": [
       1920,
       2560
@@ -89,7 +89,7 @@
     "annotator": "unknown",
     "timestamp": "2025-12-04T15:24:46.767255+00:00"
   },
-  "PATEK_nab_035_09_face_q2.jpg": {
+  "PATEK_nab_035_09": {
     "image_size": [
       1920,
       2560
@@ -119,7 +119,7 @@
     "annotator": "unknown",
     "timestamp": "2025-12-04T15:25:50.196015+00:00"
   },
-  "PATEK_nab_035_13_tiltface_q2.jpg": {
+  "PATEK_nab_035_13": {
     "image_size": [
       1920,
       2560
@@ -149,7 +149,7 @@
     "annotator": "unknown",
     "timestamp": "2025-12-04T15:26:40.216027+00:00"
   },
-  "PATEK_nab_035_14_face_q3.jpg": {
+  "PATEK_nab_035_14": {
     "image_size": [
       1920,
       2560
@@ -179,7 +179,7 @@
     "annotator": "unknown",
     "timestamp": "2025-12-04T15:27:25.861287+00:00"
   },
-  "PATEK_nab_035_15_face_q3.jpg": {
+  "PATEK_nab_035_15": {
     "image_size": [
       1920,
       2560

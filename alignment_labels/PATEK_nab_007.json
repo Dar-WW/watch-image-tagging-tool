@@ -1,5 +1,5 @@
 {
-  "PATEK_nab_007_01_face_q3.jpg": {
+  "PATEK_nab_007_01": {
     "image_size": [
       2000,
       2000
@@ -29,7 +29,7 @@
     "annotator": "unknown",
     "timestamp": "2025-12-04T12:47:14.349562+00:00"
   },
-  "PATEK_nab_007_02_face_q3.jpg": {
+  "PATEK_nab_007_02": {
     "image_size": [
       2000,
       1674
@@ -59,7 +59,7 @@
     "annotator": "unknown",
     "timestamp": "2025-12-04T12:47:55.992657+00:00"
   },
-  "PATEK_nab_007_03_tiltface_q2.jpg": {
+  "PATEK_nab_007_03": {
     "image_size": [
       2000,
       1674
@@ -89,7 +89,7 @@
     "annotator": "unknown",
     "timestamp": "2025-12-04T12:50:34.268004+00:00"
   },
-  "PATEK_nab_007_13_tiltface_q2.jpg": {
+  "PATEK_nab_007_13": {
     "image_size": [
       2000,
       1674

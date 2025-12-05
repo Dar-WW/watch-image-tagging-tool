@@ -2,6 +2,7 @@
 
 Handles loading, saving, and managing alignment keypoint annotations.
 Annotations are stored in JSON files per watch with normalized coordinates.
+Keys use quality-agnostic image IDs (e.g., "PATEK_nab_041_05" instead of full filenames).
 """
 
 import os
@@ -11,9 +12,9 @@ from pathlib import Path
 from datetime import datetime, timezone
 
 try:
-    from .filename_parser import ImageMetadata
+    from .filename_parser import ImageMetadata, get_image_id
 except ImportError:
-    from filename_parser import ImageMetadata
+    from filename_parser import ImageMetadata, get_image_id
 
 
 class AlignmentManager:
@@ -95,13 +96,18 @@ class AlignmentManager:
 
         Args:
             watch_id: Watch folder name
-            filename: Image filename
+            filename: Image filename (will be converted to image ID internally)
 
         Returns:
             Annotation dict if found, None otherwise
         """
+        # Convert filename to image ID (quality-agnostic)
+        image_id = get_image_id(filename)
+        if image_id is None:
+            return None
+
         annotations = self.load_annotations(watch_id)
-        return annotations.get(filename)
+        return annotations.get(image_id)
 
     def is_image_labeled(self, watch_id: str, filename: str) -> bool:
         """Check if an image has a complete annotation (all 5 keypoints).
@@ -141,7 +147,7 @@ class AlignmentManager:
 
         Args:
             watch_id: Watch folder name
-            filename: Image filename
+            filename: Image filename (will be converted to image ID internally)
             coords_pixel: Dictionary of pixel coordinates
                          Format: {"top": [x, y], "left": [x, y], ...}
             image_size: Tuple of (width, height) in pixels
@@ -150,6 +156,11 @@ class AlignmentManager:
         Returns:
             Tuple of (success: bool, error_message: str)
         """
+        # Convert filename to image ID (quality-agnostic)
+        image_id = get_image_id(filename)
+        if image_id is None:
+            return False, "Invalid filename format"
+
         # Validate coords_pixel has all 5 keypoints
         required_keys = ["top", "left", "right", "bottom", "center"]
         if not all(key in coords_pixel for key in required_keys):
@@ -176,8 +187,8 @@ class AlignmentManager:
         # Load existing annotations
         annotations = self.load_annotations(watch_id)
 
-        # Update or insert
-        annotations[filename] = annotation
+        # Update or insert using image ID (not full filename)
+        annotations[image_id] = annotation
 
         # Save
         return self.save_annotations(watch_id, annotations)
@@ -187,17 +198,22 @@ class AlignmentManager:
 
         Args:
             watch_id: Watch folder name
-            filename: Image filename
+            filename: Image filename (will be converted to image ID internally)
 
         Returns:
             Tuple of (success: bool, error_message: str)
         """
+        # Convert filename to image ID (quality-agnostic)
+        image_id = get_image_id(filename)
+        if image_id is None:
+            return False, "Invalid filename format"
+
         # Load annotations
         annotations = self.load_annotations(watch_id)
 
         # Remove entry if exists
-        if filename in annotations:
-            del annotations[filename]
+        if image_id in annotations:
+            del annotations[image_id]
 
         # Save
         return self.save_annotations(watch_id, annotations)
