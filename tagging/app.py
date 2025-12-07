@@ -1044,8 +1044,24 @@ def render_alignment_card(
                 with col1:
                     x_pos = st.slider("X Position", 0.0, 1.0, current_settings["x"],
                                      0.01, key=f"cross_x_{idx}")
+
+                    # Rotation slider with +/- buttons
                     rotation = st.slider("Rotation (°)", 0, 359, current_settings["rotation"],
                                         1, key=f"cross_rot_{idx}")
+
+                    # +/- buttons for rotation
+                    btn_col1, btn_col2 = st.columns([1, 1])
+                    with btn_col1:
+                        if st.button("➖", key=f"rot_minus_{idx}", use_container_width=True):
+                            new_rotation = (current_settings["rotation"] - 1) % 360
+                            st.session_state.cross_helper_settings[session_key]["rotation"] = new_rotation
+                            st.rerun()
+                    with btn_col2:
+                        if st.button("➕", key=f"rot_plus_{idx}", use_container_width=True):
+                            new_rotation = (current_settings["rotation"] + 1) % 360
+                            st.session_state.cross_helper_settings[session_key]["rotation"] = new_rotation
+                            st.rerun()
+
                 with col2:
                     y_pos = st.slider("Y Position", 0.0, 1.0, current_settings["y"],
                                      0.01, key=f"cross_y_{idx}")
