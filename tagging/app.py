@@ -1001,40 +1001,41 @@ def render_alignment_card(
             if session_key not in st.session_state.cross_helper_mode:
                 st.session_state.cross_helper_mode[session_key] = "position"
 
-            # Mode toggle (only show if not fully labeled)
-            if not is_labeled:
-                current_mode = st.session_state.cross_helper_mode.get(session_key, "position")
-                mode_col1, mode_col2 = st.columns(2)
+            # Mode toggle and instructions
+            current_mode = st.session_state.cross_helper_mode.get(session_key, "position")
 
-                with mode_col1:
-                    if st.button("📍 Annotate Points",
-                                key=f"mode_annotate_{idx}",
-                                type="primary" if current_mode == "annotate" else "secondary",
-                                width='stretch'):
-                        st.session_state.cross_helper_mode[session_key] = "annotate"
-                        st.rerun()
+            # Show mode toggle buttons (always when helper is enabled)
+            mode_col1, mode_col2 = st.columns(2)
 
-                with mode_col2:
-                    if st.button("🎯 Position Cross",
-                                key=f"mode_position_{idx}",
-                                type="primary" if current_mode == "position" else "secondary",
-                                width='stretch'):
-                        st.session_state.cross_helper_mode[session_key] = "position"
-                        st.rerun()
+            with mode_col1:
+                # Only allow annotate mode if not already labeled
+                if st.button("📍 Annotate Points",
+                            key=f"mode_annotate_{idx}",
+                            type="primary" if current_mode == "annotate" else "secondary",
+                            disabled=is_labeled,
+                            use_container_width=True):
+                    st.session_state.cross_helper_mode[session_key] = "annotate"
+                    st.rerun()
 
-                # Show instruction based on mode
+            with mode_col2:
+                if st.button("🎯 Position Cross",
+                            key=f"mode_position_{idx}",
+                            type="primary" if current_mode == "position" else "secondary",
+                            use_container_width=True):
+                    st.session_state.cross_helper_mode[session_key] = "position"
+                    st.rerun()
+
+            # Show instruction based on mode
+            if current_mode == "annotate" and not is_labeled:
                 point_names = ["TOP", "BOTTOM", "LEFT", "RIGHT", "CENTER"]
-                if current_mode == "annotate":
-                    if num_points < 5:
-                        current_point = point_names[num_points]
-                        st.info(f"📍 Click {current_point} ({num_points + 1}/5)", icon="📍")
-                    st.caption(f"Points: {num_points}/5")
-                else:
-                    st.warning("🎯 POSITION MODE: Click anywhere on the image to move the cross", icon="🎯")
-                    current_settings = st.session_state.cross_helper_settings[session_key]
-                    st.caption(f"Cross at: ({current_settings['x']:.2f}, {current_settings['y']:.2f}) | Rotation: {current_settings['rotation']}°")
-            else:
+                if num_points < 5:
+                    current_point = point_names[num_points]
+                    st.info(f"📍 Click {current_point} ({num_points + 1}/5)", icon="📍")
                 st.caption(f"Points: {num_points}/5")
+            elif current_mode == "position" or is_labeled:
+                st.warning("🎯 POSITION MODE: Click anywhere on the image to move the cross", icon="🎯")
+                current_settings = st.session_state.cross_helper_settings[session_key]
+                st.caption(f"Cross at: ({current_settings['x']:.2f}, {current_settings['y']:.2f}) | Rotation: {current_settings['rotation']}°")
 
             # Cross helper fine-tune controls in expander
             with st.expander("🎛️ Fine-tune Controls", expanded=False):
@@ -1114,17 +1115,22 @@ def render_alignment_card(
                 x_norm = click_x / img_size[0]
                 y_norm = click_y / img_size[1]
 
+                # Ensure settings exist (defensive programming)
+                if session_key not in st.session_state.cross_helper_settings:
+                    st.session_state.cross_helper_settings[session_key] = {
+                        "x": 0.5,
+                        "y": 0.5,
+                        "rotation": 0,
+                        "size": 0.45
+                    }
+
                 # Update cross position
-                if session_key in st.session_state.cross_helper_settings:
-                    st.session_state.cross_helper_settings[session_key]["x"] = x_norm
-                    st.session_state.cross_helper_settings[session_key]["y"] = y_norm
-                    # Increment counter to reset component
-                    current_cross_counter = st.session_state.cross_position_counter.get(session_key, 0)
-                    st.session_state.cross_position_counter[session_key] = current_cross_counter + 1
-                    st.success(f"✅ Cross moved to ({x_norm:.2f}, {y_norm:.2f})", icon="🎯")
-                    st.rerun()
-                else:
-                    st.error("Debug: Settings not found", icon="⚠️")
+                st.session_state.cross_helper_settings[session_key]["x"] = x_norm
+                st.session_state.cross_helper_settings[session_key]["y"] = y_norm
+                # Increment counter to reset component
+                current_cross_counter = st.session_state.cross_position_counter.get(session_key, 0)
+                st.session_state.cross_position_counter[session_key] = current_cross_counter + 1
+                st.rerun()
 
             # Mode 2: Annotate Points - place keypoints
             elif not is_labeled and session is not None:
