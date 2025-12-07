@@ -272,7 +272,7 @@ def render_image_card(image_meta: ImageMetadata, idx: int):
 
         # Display interactive zoomable image directly
         fig, config = create_zoomable_image(img, filename=image_meta.filename)
-        st.plotly_chart(fig, width='stretch', config=config, key=f"plot_{idx}")
+        st.plotly_chart(fig, use_container_width=True, config=config, key=f"plot_{idx}")
 
         # Show filename
         st.caption(f"**{image_meta.filename}**")
