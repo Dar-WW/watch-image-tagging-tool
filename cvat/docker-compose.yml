@@ -25,6 +25,17 @@ services:
     networks:
       - cvat
 
+  cvat_opa:
+    container_name: cvat_opa
+    image: nginx:1.25-alpine
+    restart: always
+    networks:
+      cvat:
+        aliases:
+          - opa
+    volumes:
+      - ./opa-mock.conf:/etc/nginx/nginx.conf:ro
+
   cvat_server:
     container_name: cvat_server
     image: cvat/server:v2.9.1
@@ -32,6 +43,9 @@ services:
     depends_on:
       - cvat_db
       - cvat_redis
+    command: run server
+    expose:
+      - "8080"
     environment:
       DJANGO_MODWSGI_EXTRA_ARGS: ''
       ALLOWED_HOSTS: '*'
@@ -40,6 +54,8 @@ services:
       CVAT_POSTGRES_USER: root
       CVAT_POSTGRES_DBNAME: cvat
       CVAT_POSTGRES_PASSWORD: ''
+      SMOKESCREEN_OPTS: ''
+      CVAT_IAM_OPA_SKIP_PRIVILEGED_CHECK: 'true'
       # Enable local file sharing
       CVAT_SHARE_URL: 'Local files from /home/django/share'
     volumes:
@@ -64,6 +80,7 @@ services:
       CVAT_POSTGRES_USER: root
       CVAT_POSTGRES_DBNAME: cvat
       CVAT_POSTGRES_PASSWORD: ''
+      SMOKESCREEN_OPTS: ''
     volumes:
       - cvat_data:/home/django/data
       - cvat_keys:/home/django/keys
@@ -85,6 +102,7 @@ services:
       CVAT_POSTGRES_USER: root
       CVAT_POSTGRES_DBNAME: cvat
       CVAT_POSTGRES_PASSWORD: ''
+      SMOKESCREEN_OPTS: ''
     volumes:
       - cvat_data:/home/django/data
       - cvat_keys:/home/django/keys
@@ -106,6 +124,7 @@ services:
       CVAT_POSTGRES_USER: root
       CVAT_POSTGRES_DBNAME: cvat
       CVAT_POSTGRES_PASSWORD: ''
+      SMOKESCREEN_OPTS: ''
     volumes:
       - cvat_data:/home/django/data
       - cvat_keys:/home/django/keys
@@ -123,21 +142,6 @@ services:
     networks:
       - cvat
 
-  traefik:
-    container_name: traefik
-    image: traefik:v2.10
-    restart: always
-    command:
-      - '--providers.docker.exposedByDefault=false'
-      - '--providers.docker.network=cvat'
-      - '--entryPoints.web.address=:8080'
-    ports:
-      - 8080:8080
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    networks:
-      - cvat
-
   cvat_proxy:
     container_name: cvat_proxy
     image: nginx:1.25-alpine
@@ -145,15 +149,12 @@ services:
     depends_on:
       - cvat_server
       - cvat_ui
+    ports:
+      - 8080:80
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     networks:
       - cvat
-    labels:
-      - traefik.enable=true
-      - traefik.http.services.cvat.loadbalancer.server.port=80
-      - traefik.http.routers.cvat.entrypoints=web
-      - traefik.http.routers.cvat.rule=PathPrefix(`/`)
 
 volumes:
   cvat_db:

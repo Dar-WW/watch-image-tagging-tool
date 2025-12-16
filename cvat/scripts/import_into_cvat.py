@@ -244,7 +244,8 @@ class CVATClient:
         
         with open(xml_path, 'rb') as f:
             files = {'annotation_file': (xml_path.name, f, 'text/xml')}
-            params = {'format': 'CVAT for images 1.1'}
+            # Use 'cvat' format (lowercase)
+            params = {'format': 'cvat'}
             
             response = self.session.put(url, files=files, params=params)
         
