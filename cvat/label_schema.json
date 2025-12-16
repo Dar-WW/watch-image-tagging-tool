@@ -1,0 +1,83 @@
+{
+  "version": "1.0",
+  "description": "Watch landmark annotation schema for CVAT",
+  "labels": [
+    {
+      "name": "watch_landmarks",
+      "type": "skeleton",
+      "color": "#FF5733",
+      "attributes": [
+        {
+          "name": "quality",
+          "mutable": false,
+          "input_type": "select",
+          "default_value": "full",
+          "values": ["bad", "partial", "full"]
+        },
+        {
+          "name": "view_type",
+          "mutable": false,
+          "input_type": "select",
+          "default_value": "face",
+          "values": ["face", "tiltface"]
+        }
+      ],
+      "sublabels": [
+        {
+          "name": "top",
+          "color": "#FF0000",
+          "type": "points"
+        },
+        {
+          "name": "bottom",
+          "color": "#00FF00",
+          "type": "points"
+        },
+        {
+          "name": "left",
+          "color": "#0000FF",
+          "type": "points"
+        },
+        {
+          "name": "right",
+          "color": "#FFFF00",
+          "type": "points"
+        },
+        {
+          "name": "center",
+          "color": "#FF00FF",
+          "type": "points"
+        }
+      ],
+      "svg": "<circle cx=\"50\" cy=\"50\" r=\"45\" stroke=\"#FF5733\" fill=\"none\" stroke-width=\"2\"/>",
+      "joints": [
+        ["top", "center"],
+        ["bottom", "center"],
+        ["left", "center"],
+        ["right", "center"]
+      ]
+    },
+    {
+      "name": "crop_roi",
+      "type": "rectangle",
+      "color": "#33FF57",
+      "attributes": [
+        {
+          "name": "crop_type",
+          "mutable": false,
+          "input_type": "select",
+          "default_value": "watch_face",
+          "values": ["watch_face", "dial", "custom"]
+        }
+      ]
+    }
+  ],
+  "keypoint_order": ["top", "bottom", "left", "right", "center"],
+  "notes": {
+    "top": "12 o'clock position on watch dial",
+    "bottom": "6 o'clock position on watch dial",
+    "left": "9 o'clock position on watch dial",
+    "right": "3 o'clock position on watch dial",
+    "center": "Center of watch dial"
+  }
+}

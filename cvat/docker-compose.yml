@@ -1,0 +1,166 @@
+# CVAT Local Deployment - Docker Compose Configuration
+# Based on CVAT Community Edition
+# Documentation: https://github.com/opencv/cvat
+
+version: '3.8'
+
+services:
+  cvat_db:
+    container_name: cvat_db
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_DB: cvat
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - cvat_db:/var/lib/postgresql/data
+    networks:
+      - cvat
+
+  cvat_redis:
+    container_name: cvat_redis
+    image: redis:7-alpine
+    restart: always
+    networks:
+      - cvat
+
+  cvat_server:
+    container_name: cvat_server
+    image: cvat/server:v2.9.1
+    restart: always
+    depends_on:
+      - cvat_db
+      - cvat_redis
+    environment:
+      DJANGO_MODWSGI_EXTRA_ARGS: ''
+      ALLOWED_HOSTS: '*'
+      CVAT_REDIS_HOST: cvat_redis
+      CVAT_POSTGRES_HOST: cvat_db
+      CVAT_POSTGRES_USER: root
+      CVAT_POSTGRES_DBNAME: cvat
+      CVAT_POSTGRES_PASSWORD: ''
+      # Enable local file sharing
+      CVAT_SHARE_URL: 'Local files from /home/django/share'
+    volumes:
+      - cvat_data:/home/django/data
+      - cvat_keys:/home/django/keys
+      - cvat_logs:/home/django/logs
+      # Mount local image directory (read-only)
+      - ${CVAT_SHARE_DIR:-../downloaded_images}:/home/django/share:ro
+    networks:
+      - cvat
+
+  cvat_worker_import:
+    container_name: cvat_worker_import
+    image: cvat/server:v2.9.1
+    restart: always
+    depends_on:
+      - cvat_server
+    command: run worker.import
+    environment:
+      CVAT_REDIS_HOST: cvat_redis
+      CVAT_POSTGRES_HOST: cvat_db
+      CVAT_POSTGRES_USER: root
+      CVAT_POSTGRES_DBNAME: cvat
+      CVAT_POSTGRES_PASSWORD: ''
+    volumes:
+      - cvat_data:/home/django/data
+      - cvat_keys:/home/django/keys
+      - cvat_logs:/home/django/logs
+      - ${CVAT_SHARE_DIR:-../downloaded_images}:/home/django/share:ro
+    networks:
+      - cvat
+
+  cvat_worker_export:
+    container_name: cvat_worker_export
+    image: cvat/server:v2.9.1
+    restart: always
+    depends_on:
+      - cvat_server
+    command: run worker.export
+    environment:
+      CVAT_REDIS_HOST: cvat_redis
+      CVAT_POSTGRES_HOST: cvat_db
+      CVAT_POSTGRES_USER: root
+      CVAT_POSTGRES_DBNAME: cvat
+      CVAT_POSTGRES_PASSWORD: ''
+    volumes:
+      - cvat_data:/home/django/data
+      - cvat_keys:/home/django/keys
+      - cvat_logs:/home/django/logs
+      - ${CVAT_SHARE_DIR:-../downloaded_images}:/home/django/share:ro
+    networks:
+      - cvat
+
+  cvat_worker_annotation:
+    container_name: cvat_worker_annotation
+    image: cvat/server:v2.9.1
+    restart: always
+    depends_on:
+      - cvat_server
+    command: run worker.annotation
+    environment:
+      CVAT_REDIS_HOST: cvat_redis
+      CVAT_POSTGRES_HOST: cvat_db
+      CVAT_POSTGRES_USER: root
+      CVAT_POSTGRES_DBNAME: cvat
+      CVAT_POSTGRES_PASSWORD: ''
+    volumes:
+      - cvat_data:/home/django/data
+      - cvat_keys:/home/django/keys
+      - cvat_logs:/home/django/logs
+      - ${CVAT_SHARE_DIR:-../downloaded_images}:/home/django/share:ro
+    networks:
+      - cvat
+
+  cvat_ui:
+    container_name: cvat_ui
+    image: cvat/ui:v2.9.1
+    restart: always
+    depends_on:
+      - cvat_server
+    networks:
+      - cvat
+
+  traefik:
+    container_name: traefik
+    image: traefik:v2.10
+    restart: always
+    command:
+      - '--providers.docker.exposedByDefault=false'
+      - '--providers.docker.network=cvat'
+      - '--entryPoints.web.address=:8080'
+    ports:
+      - 8080:8080
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - cvat
+
+  cvat_proxy:
+    container_name: cvat_proxy
+    image: nginx:1.25-alpine
+    restart: always
+    depends_on:
+      - cvat_server
+      - cvat_ui
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - cvat
+    labels:
+      - traefik.enable=true
+      - traefik.http.services.cvat.loadbalancer.server.port=80
+      - traefik.http.routers.cvat.entrypoints=web
+      - traefik.http.routers.cvat.rule=PathPrefix(`/`)
+
+volumes:
+  cvat_db:
+  cvat_data:
+  cvat_keys:
+  cvat_logs:
+
+networks:
+  cvat:
+    name: cvat
