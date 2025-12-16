@@ -1,0 +1,5 @@
+# Label Studio Migration Tools
+# Python 3.10+ required
+
+# No external dependencies - uses only Python standard library
+# (json, pathlib, argparse, uuid, dataclasses, collections, re, typing)

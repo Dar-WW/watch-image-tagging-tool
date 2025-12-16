@@ -1,0 +1,13 @@
+# Label Studio data directory (created by Docker)
+data/
+
+# Generated files
+tasks.json
+predictions.json
+dummy_predictions.json
+export*.json
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo

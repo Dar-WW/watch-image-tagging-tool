@@ -1,0 +1,13 @@
+<View>
+  <Image name="image" value="$image" zoom="true" />
+  <RectangleLabels name="crop_roi" toName="image" maxUsages="1" strokeWidth="2">
+    <Label value="Crop ROI" background="green" />
+  </RectangleLabels>
+  <KeyPointLabels name="keypoints" toName="image" pointSize="10" strokeWidth="2">
+    <Label value="Top" background="red" />
+    <Label value="Bottom" background="blue" />
+    <Label value="Left" background="yellow" />
+    <Label value="Right" background="purple" />
+    <Label value="Center" background="orange" />
+  </KeyPointLabels>
+</View>
