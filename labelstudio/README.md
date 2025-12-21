@@ -15,12 +15,20 @@ Access the UI at http://localhost:8200
 
 ### 2. Create Admin User (First Time Only)
 
+**Option A: Via Web UI (Recommended)**
+
+1. Go to http://localhost:8200
+2. Click "Sign up" on the login page
+3. Fill in your email, password, and username
+4. Complete the signup process
+
+**Option B: Via Command Line**
+
 ```bash
-docker-compose exec label-studio label-studio user create \
-    --username admin \
-    --password YOUR_PASSWORD \
-    --email admin@example.com
+docker-compose exec label-studio label-studio user --username admin --password YOUR_PASSWORD
 ```
+
+Note: The command-line option doesn't support setting an email address directly.
 
 ### 3. Create a Project
 
@@ -30,6 +38,23 @@ docker-compose exec label-studio label-studio user create \
 4. Go to "Labeling Setup" tab
 5. Choose "Custom template"
 6. Paste the contents of `labeling_config.xml`
+7. Click "Save"
+
+### 3a. Configure Local File Storage
+
+To enable local file serving:
+
+1. Go to your project
+2. Click "Settings" → "Cloud Storage"
+3. Click "Add Source Storage"
+4. Choose "Local Files"
+5. Configure:
+   - **Storage Title**: "Local Images"
+   - **Absolute local path**: `/label-studio/media/images`
+   - **File Filter Regex**: `.*\.jpg$` (or leave empty for all files)
+   - Check "Treat every bucket object as a source file"
+6. Click "Add Storage"
+7. Click "Sync Storage" to load the images
 
 ### 4. Convert and Import Existing Annotations
 
@@ -38,7 +63,7 @@ docker-compose exec label-studio label-studio user create \
 python convert_to_labelstudio.py \
     --input-dir ../alignment_labels \
     --output tasks.json \
-    --image-base-url "/data/local-files/?d="
+    --image-base-url "/data/local-files/?d=images/"
 
 # Import tasks into Label Studio via UI:
 # 1. Go to your project

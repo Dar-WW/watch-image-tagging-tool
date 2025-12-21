@@ -3,10 +3,12 @@ services:
   label-studio:
     image: heartexlabs/label-studio:latest
     ports:
-      - "8200:8200"
+      - "8200:8080"
     environment:
       - LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED=true
       - LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT=/label-studio/media
+      - LABEL_STUDIO_LOCAL_FILES_IMPORT_ENABLED=true
     volumes:
       - ./data:/label-studio/data
-      - ../downloaded_images:/label-studio/media:ro
+      - ../downloaded_images:/label-studio/media/images:ro
+      - ./nginx-local-files.conf:/etc/nginx/conf.d/local-files.conf:ro

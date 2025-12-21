@@ -15,14 +15,14 @@ import json
 import re
 from collections import defaultdict
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional, Tuple
 
 
 def parse_rectangle_roi(
-    result: dict[str, Any],
+    result: Dict[str, Any],
     original_width: int,
     original_height: int,
-) -> list[int] | None:
+) -> Optional[List[int]]:
     """
     Parse Label Studio rectangle ROI to internal crop_bbox format.
 
@@ -52,8 +52,8 @@ def parse_rectangle_roi(
 
 
 def parse_keypoint(
-    result: dict[str, Any],
-) -> tuple[str, list[float]] | None:
+    result: Dict[str, Any],
+) -> Optional[Tuple[str, List[float]]]:
     """
     Parse Label Studio keypoint to internal format.
 
@@ -79,7 +79,7 @@ def parse_keypoint(
     return (label, [x_norm, y_norm])
 
 
-def extract_image_key_from_task(task: dict[str, Any]) -> str | None:
+def extract_image_key_from_task(task: Dict[str, Any]) -> Optional[str]:
     """
     Extract image key from Label Studio task data.
 
@@ -121,8 +121,8 @@ def extract_watch_folder(image_key: str) -> str:
 
 
 def convert_task_to_internal(
-    task: dict[str, Any],
-) -> dict[str, Any] | None:
+    task: Dict[str, Any],
+) -> Optional[Dict[str, Any]]:
     """
     Convert a Label Studio task/annotation to internal format.
 
@@ -195,8 +195,8 @@ def convert_task_to_internal(
 
 
 def convert_labelstudio_export(
-    export_data: list[dict[str, Any]],
-) -> dict[str, dict[str, dict[str, Any]]]:
+    export_data: List[Dict[str, Any]],
+) -> Dict[str, Dict[str, Dict[str, Any]]]:
     """
     Convert Label Studio export to internal format, grouped by watch folder.
 
@@ -218,7 +218,7 @@ def convert_labelstudio_export(
     return dict(grouped)
 
 
-def load_existing_annotations(output_dir: Path) -> dict[str, dict[str, Any]]:
+def load_existing_annotations(output_dir: Path) -> Dict[str, Dict[str, Any]]:
     """
     Load existing internal annotation files.
 
@@ -243,9 +243,9 @@ def load_existing_annotations(output_dir: Path) -> dict[str, dict[str, Any]]:
 
 
 def merge_annotations(
-    existing: dict[str, dict[str, Any]],
-    new: dict[str, dict[str, Any]],
-) -> dict[str, dict[str, Any]]:
+    existing: Dict[str, Dict[str, Any]],
+    new: Dict[str, Dict[str, Any]],
+) -> Dict[str, Dict[str, Any]]:
     """
     Merge new annotations into existing ones.
 
@@ -270,7 +270,7 @@ def merge_annotations(
 
 
 def save_annotations(
-    annotations: dict[str, dict[str, Any]],
+    annotations: Dict[str, Dict[str, Any]],
     output_dir: Path,
 ) -> None:
     """

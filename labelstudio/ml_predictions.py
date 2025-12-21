@@ -24,13 +24,13 @@ import argparse
 import json
 import uuid
 from pathlib import Path
-from typing import Any, Callable, Protocol
+from typing import Any, Callable, Dict, List, Optional, Protocol, Tuple
 
 
 class KeypointPredictor(Protocol):
     """Protocol for keypoint prediction models."""
 
-    def predict(self, image_path: Path) -> dict[str, tuple[float, float]]:
+    def predict(self, image_path: Path) -> Dict[str, Tuple[float, float]]:
         """
         Predict keypoints for an image.
 
@@ -46,7 +46,7 @@ class KeypointPredictor(Protocol):
 class CropROIPredictor(Protocol):
     """Protocol for crop ROI prediction models."""
 
-    def predict(self, image_path: Path) -> tuple[float, float, float, float] | None:
+    def predict(self, image_path: Path) -> Optional[Tuple[float, float, float, float]]:
         """
         Predict crop ROI for an image.
 
@@ -104,7 +104,7 @@ def create_roi_prediction(
     width_norm: float,
     height_norm: float,
     score: float = 1.0,
-) -> dict[str, Any]:
+) -> Dict[str, Any]:
     """
     Create a Label Studio rectangle ROI prediction result.
 
@@ -136,9 +136,9 @@ def create_roi_prediction(
 
 def create_prediction_for_image(
     image_path: Path,
-    keypoint_predictor: KeypointPredictor | None = None,
-    roi_predictor: CropROIPredictor | None = None,
-) -> dict[str, Any]:
+    keypoint_predictor: Optional[KeypointPredictor] = None,
+    roi_predictor: Optional[CropROIPredictor] = None,
+) -> Dict[str, Any]:
     """
     Create a complete prediction for an image.
 
@@ -167,9 +167,9 @@ def create_prediction_for_image(
 
 
 def add_predictions_to_tasks(
-    tasks: list[dict[str, Any]],
-    predictions: dict[str, dict[str, Any]],
-) -> list[dict[str, Any]]:
+    tasks: List[Dict[str, Any]],
+    predictions: Dict[str, Dict[str, Any]],
+) -> List[Dict[str, Any]]:
     """
     Add predictions to existing tasks.
 
@@ -249,7 +249,7 @@ def create_dummy_predictions(
     print(f"Generated {len(predictions)} dummy predictions to {output_file}")
 
 
-def load_predictions(predictions_file: Path) -> dict[str, dict[str, Any]]:
+def load_predictions(predictions_file: Path) -> Dict[str, Dict[str, Any]]:
     """
     Load predictions from a JSON file.
 

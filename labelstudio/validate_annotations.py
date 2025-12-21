@@ -20,7 +20,7 @@ import argparse
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List
 
 
 REQUIRED_KEYPOINTS = {"top", "bottom", "left", "right", "center"}
@@ -31,8 +31,8 @@ class ValidationResult:
     """Result of validation for a single annotation."""
 
     image_key: str
-    errors: list[str] = field(default_factory=list)
-    warnings: list[str] = field(default_factory=list)
+    errors: List[str] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
 
     @property
     def is_valid(self) -> bool:
@@ -49,7 +49,7 @@ class ValidationResult:
 class ValidationReport:
     """Overall validation report."""
 
-    results: list[ValidationResult] = field(default_factory=list)
+    results: List[ValidationResult] = field(default_factory=list)
 
     @property
     def total_count(self) -> int:
@@ -106,7 +106,7 @@ class ValidationReport:
 
 
 def validate_keypoint_coords(
-    coords: list[float],
+    coords: List[float],
     keypoint_name: str,
     result: ValidationResult,
 ) -> None:
@@ -129,8 +129,8 @@ def validate_keypoint_coords(
 
 
 def validate_crop_bbox(
-    crop_bbox: list[int],
-    original_size: list[int],
+    crop_bbox: List[int],
+    original_size: List[int],
     result: ValidationResult,
 ) -> None:
     """Validate crop bounding box is within image bounds."""
@@ -164,7 +164,7 @@ def validate_crop_bbox(
 
 def validate_internal_annotation(
     image_key: str,
-    annotation: dict[str, Any],
+    annotation: Dict[str, Any],
     images_dir: Path | None = None,
 ) -> ValidationResult:
     """
@@ -254,7 +254,7 @@ def validate_internal_annotations(
 
 
 def validate_labelstudio_task(
-    task: dict[str, Any],
+    task: Dict[str, Any],
 ) -> ValidationResult:
     """
     Validate a Label Studio task/annotation.

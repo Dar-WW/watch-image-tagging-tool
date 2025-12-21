@@ -15,7 +15,7 @@ import json
 import os
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 
 def generate_result_id() -> str:
@@ -24,9 +24,9 @@ def generate_result_id() -> str:
 
 
 def convert_crop_bbox_to_roi(
-    crop_bbox: list[int],
-    original_image_size: list[int],
-) -> dict[str, Any] | None:
+    crop_bbox: List[int],
+    original_image_size: List[int],
+) -> Optional[Dict[str, Any]]:
     """
     Convert internal crop_bbox to Label Studio rectangle format.
 
@@ -71,8 +71,8 @@ def convert_crop_bbox_to_roi(
 
 def convert_keypoint(
     keypoint_name: str,
-    coords: list[float],
-) -> dict[str, Any]:
+    coords: List[float],
+) -> Dict[str, Any]:
     """
     Convert internal keypoint to Label Studio keypoint format.
 
@@ -107,9 +107,9 @@ def convert_keypoint(
 
 def convert_annotation_to_labelstudio(
     image_key: str,
-    annotation: dict[str, Any],
+    annotation: Dict[str, Any],
     image_base_url: str,
-) -> dict[str, Any]:
+) -> Dict[str, Any]:
     """
     Convert a single internal annotation to Label Studio task format.
 
@@ -163,7 +163,7 @@ def convert_annotation_to_labelstudio(
     return task
 
 
-def load_internal_annotations(input_dir: Path) -> dict[str, dict[str, Any]]:
+def load_internal_annotations(input_dir: Path) -> Dict[str, Dict[str, Any]]:
     """
     Load all internal annotation files from a directory.
 
@@ -192,7 +192,7 @@ def load_internal_annotations(input_dir: Path) -> dict[str, dict[str, Any]]:
 def convert_all_annotations(
     input_dir: Path,
     image_base_url: str,
-) -> list[dict[str, Any]]:
+) -> List[Dict[str, Any]]:
     """
     Convert all internal annotations to Label Studio format.
 
