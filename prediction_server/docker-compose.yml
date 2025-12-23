@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  prediction-server:
+    build: .
+    container_name: watch-prediction-server
+    ports:
+      - "9090:9090"
+    volumes:
+      # Config file (read-only)
+      - ./config.yaml:/app/config.yaml:ro
+
+      # Media files (read-only)
+      - ../downloaded_images:/label-studio/media/images:ro
+
+      # Cache directory (read-write)
+      - ./cache:/app/cache
+
+      # Template files (read-only)
+      - ../templates:/app/templates:ro
+
+      # YOLO model weights (read-only)
+      - ./models:/app/models:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    networks:
+      - prediction-net
+
+networks:
+  prediction-net:
+    driver: bridge

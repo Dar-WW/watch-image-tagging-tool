@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  # Label Studio - Annotation UI
+  label-studio:
+    image: heartexlabs/label-studio:1.9.2
+    container_name: watch-label-studio
+    ports:
+      - "8200:8080"
+    environment:
+      - LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED=true
+      - LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT=/label-studio/media
+      - LABEL_STUDIO_LOCAL_FILES_IMPORT_ENABLED=true
+    volumes:
+      # Label Studio data (database, configs)
+      - ./labelstudio/data:/label-studio/data
+
+      # Shared images (read-only)
+      - ./downloaded_images:/label-studio/media/images:ro
+
+      # Nginx config for local file serving
+      - ./labelstudio/nginx-local-files.conf:/etc/nginx/conf.d/local-files.conf:ro
+    networks:
+      - watch-network
+    restart: unless-stopped
+
+  # Prediction Server - ML Backend
+  prediction-server:
+    build: ./prediction_server
+    container_name: watch-prediction-server
+    ports:
+      - "9090:9090"
+    volumes:
+      # Config file (read-only)
+      - ./prediction_server/config.yaml:/app/prediction_server/config.yaml:ro
+
+      # Shared images (read-only)
+      - ./downloaded_images:/label-studio/media/images:ro
+
+      # Cache directory (read-write for storing predictions)
+      - ./prediction_server/cache:/app/prediction_server/cache
+
+      # Template files (read-only)
+      - ./templates:/app/prediction_server/templates:ro
+
+      # YOLO model weights (read-only)
+      - ./prediction_server/models:/app/prediction_server/models:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+    networks:
+      - watch-network
+    restart: unless-stopped
+    depends_on:
+      - label-studio
+
+networks:
+  watch-network:
+    driver: bridge

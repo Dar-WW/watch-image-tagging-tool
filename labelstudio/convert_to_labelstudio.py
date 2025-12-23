@@ -126,8 +126,13 @@ def convert_annotation_to_labelstudio(
     watch_folder = parts[0] if len(parts) > 1 else image_key
 
     # Build image path
+    # Note: Images are mounted at /label-studio/media/images/ in Docker,
+    # so we need to include "images/" prefix in the path
     full_image_name = annotation.get("full_image_name", image_key)
-    image_path = f"{watch_folder}/{full_image_name}.jpg"
+    # Add .jpg extension if not present
+    if not full_image_name.endswith(('.jpg', '.jpeg', '.png')):
+        full_image_name = f"{full_image_name}.jpg"
+    image_path = f"images/{watch_folder}/{full_image_name}"
     image_url = f"{image_base_url}{image_path}"
 
     # Build predictions/results

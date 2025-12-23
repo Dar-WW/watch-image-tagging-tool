@@ -1,0 +1,50 @@
+# Watch Image Keypoint Prediction Server Configuration
+
+server:
+  host: "0.0.0.0"
+  port: 9090
+  version: "0.1.0"
+
+pipeline:
+  # Pipeline type: homography_keypoints
+  type: "homography_keypoints"
+
+  # Minimum confidence threshold for predictions (0-1)
+  confidence_threshold: 0.7
+
+  # YOLO-OBB Phase 1 Configuration
+  yolo:
+    checkpoint_path: models/yolo_watch_face_best.pt
+    conf_threshold: 0.05  # Detection confidence threshold (very low for maximum sensitivity)
+    padding_factor: 1.5  # Output size = template_size * padding_factor (e.g., 1536×1536)
+    device: "auto"  # "auto", "cuda", "mps", "cpu"
+
+  # LoFTR Phase 2 Configuration
+  loftr:
+    weights: "outdoor"  # Pretrained weights: "outdoor" or "indoor"
+    device: "auto"  # "auto", "cuda", "mps", "cpu"
+    match_threshold: 0.2  # Confidence filter for matches [0-1]
+
+  # Homography Configuration
+  homography:
+    ransac_threshold: 5.0  # RANSAC reprojection error threshold (pixels)
+    min_inliers: 10  # Minimum inliers required for success
+
+  # Template Configuration
+  template:
+    templates_dir: templates  # Mounted at /app/templates in Docker, ../templates for local dev
+    model: "nab"  # Nautilus template
+
+cache:
+  # Enable/disable prediction caching
+  enabled: true
+
+  # Cache directory (relative to prediction_server/)
+  directory: cache/
+
+paths:
+  # Docker media mount point (used in container)
+  media_mount: /label-studio/media
+
+  # Local media directory (used in development)
+  local_media: ../downloaded_images

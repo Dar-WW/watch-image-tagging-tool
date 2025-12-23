@@ -20,8 +20,7 @@ import argparse
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List
-
+from typing import Any, Dict, List, Optional
 
 REQUIRED_KEYPOINTS = {"top", "bottom", "left", "right", "center"}
 
@@ -165,7 +164,7 @@ def validate_crop_bbox(
 def validate_internal_annotation(
     image_key: str,
     annotation: Dict[str, Any],
-    images_dir: Path | None = None,
+    images_dir: Optional[Path] = None,
 ) -> ValidationResult:
     """
     Validate a single internal annotation.
@@ -223,7 +222,7 @@ def validate_internal_annotation(
 
 def validate_internal_annotations(
     input_dir: Path,
-    images_dir: Path | None = None,
+    images_dir: Optional[Path] = None,
 ) -> ValidationReport:
     """
     Validate all internal annotation files.

@@ -1,447 +1,232 @@
-# Watch Image Tagging Tool
+# Watch Image Annotation Tool
 
-A Streamlit-based web application for tagging and managing watch training images. This tool allows you to efficiently tag images with view types, quality ratings, zoom in to inspect details, and manage image datasets.
+A Label Studio-based annotation tool for watch image keypoint labeling with ML-powered predictions. This tool enables efficient annotation of 5 keypoints (top, bottom, left, right, center) on watch face images using a two-phase YOLO + LoFTR + Homography pipeline.
 
-## 🚀 Quick Start (TL;DR)
+## ✨ Features
 
-**For teammates with Python already installed:**
-```bash
-git clone <your-repo-url>
-cd watch-image-tagging-tool
-./setup.sh
-./run_app.sh
-```
+- 🎯 **Automated Keypoint Prediction** - YOLO-OBB + LoFTR + Homography pipeline
+- 🏷️ **Label Studio Integration** - Professional annotation UI with pre-annotations
+- 🐳 **Docker Setup** - One command to start everything
+- 💾 **Smart Caching** - Fast predictions with disk-based cache
+- 📊 **Template-based** - Uses reference template for consistent alignment
 
-**Don't have Python?** See [Prerequisites](#prerequisites) below for installation instructions.
+## 🚀 Quick Start (Unified Docker Setup)
 
-## Features
+### Prerequisites
+- Docker Desktop installed and running
+- ~3 GB free disk space
 
-- 📸 **View images** in a 2-column grid layout with large, zoomable images
-- 🏷️ **Tag view type**: face or tiltface
-- ⭐ **Tag details quality**: Bad (q1), Partial (q2), or Full (q3)
-- 🔍 **Interactive zoom**: Zoom in/out and pan to inspect specific parts of images
-- 🗑️ **Delete images**: Move unwanted images to trash (recoverable)
-- ⬅️➡️ **Navigate** between watch folders with Previous/Next buttons (top and bottom)
-- 📊 **Statistics sidebar**: Real-time tracking of tagging progress, quality distribution, and deleted images
-- 🎯 **Jump to watch**: Dropdown selector to quickly navigate to any watch folder
-- 💾 **Auto-save**: Changes are saved immediately when you tag an image
-
-## Prerequisites
-
-### Check if Python is Already Installed
-
-Before starting, check if you have Python installed:
+### Start Everything
 
 ```bash
-python3 --version
+# One command to start both Label Studio and Prediction Server
+./start.sh
 ```
 
-If you see something like `Python 3.9.x` or higher, you're good to go! Skip to [Installation](#installation).
+**Access points:**
+- Label Studio UI: http://localhost:8200
+- Prediction Server: http://localhost:9090
+- API Docs: http://localhost:9090/docs
 
-If you get an error or have an older version, follow the installation instructions below.
+**Stop everything:**
+```bash
+./stop.sh
+```
+
+📖 **For detailed setup and troubleshooting, see [SETUP.md](SETUP.md)**
 
 ---
 
-### Installing Python
+## 🔧 Alternative: Manual Setup
 
-**Required**: Python 3.9 or higher
+### 1. Start Services Separately
 
-#### macOS
-
-**Option 1: Using Homebrew (Recommended)**
+**Label Studio:**
 ```bash
-# Install Homebrew if you don't have it
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-
-# Install Python
-brew install python@3.9
+cd labelstudio
+docker-compose up -d
 ```
 
-**Option 2: Download from python.org**
-1. Go to [python.org/downloads](https://www.python.org/downloads/)
-2. Download the macOS installer (3.9 or higher)
-3. Run the installer and follow the instructions
+Access the UI at **http://localhost:8200**
 
-#### Windows
-
-**Option 1: Download from python.org (Recommended)**
-1. Go to [python.org/downloads](https://www.python.org/downloads/)
-2. Download the Windows installer (3.9 or higher)
-3. **Important**: Check "Add Python to PATH" during installation
-4. Run the installer and follow the instructions
-
-**Option 2: Using Microsoft Store**
-1. Open Microsoft Store
-2. Search for "Python 3.9" or higher
-3. Click "Get" to install
-
-#### Linux (Ubuntu/Debian)
-
+**Prediction Server:**
 ```bash
-sudo apt update
-sudo apt install python3.9 python3.9-venv python3-pip
+cd prediction_server
+docker-compose up -d
 ```
 
-#### Linux (Fedora/RedHat)
+Access at **http://localhost:9090**
 
-```bash
-sudo dnf install python39 python39-pip
-```
+### 2. Create Admin User (First Time Only)
 
----
+Go to http://localhost:8200 and sign up with your email and password.
 
-### Verify Installation
+### 3. Create a Project
 
-After installing Python, verify it works:
+1. Log in and click "Create Project"
+2. Name it (e.g., "Watch Keypoint Annotation")
+3. Go to **Labeling Setup** → **Custom template**
+4. Paste contents from `labelstudio/labeling_config.xml`
+5. Click **Save**
+
+### 4. Configure Local File Storage
+
+1. Go to **Settings** → **Cloud Storage** → **Add Source Storage**
+2. Choose **Local Files**
+3. Configure:
+   - **Absolute local path**: `/label-studio/media/images`
+   - **File Filter Regex**: `.*\.jpg$`
+   - Check "Treat every bucket object as a source file"
+4. Click **Add Storage** → **Sync Storage**
+
+### 5. Import Existing Annotations (Optional)
 
 ```bash
-# Check Python version
-python3 --version
+cd labelstudio
 
-# Check pip (package installer) is available
-pip3 --version
+# Convert existing annotations to Label Studio format
+python convert_to_labelstudio.py \
+    --input-dir ../alignment_labels \
+    --output tasks.json \
+    --image-base-url "/data/local-files/?d=images/"
+
+# Import via UI: Project → Import → Upload tasks.json
 ```
 
-You should see version numbers for both commands.
+## 📁 Project Structure
 
----
+```
+watch-image-tagging-tool/
+├── labelstudio/              # Label Studio setup and tools
+│   ├── docker-compose.yml    # Docker configuration
+│   ├── labeling_config.xml   # Keypoint labeling interface
+│   ├── convert_to_labelstudio.py   # Import converter
+│   ├── export_from_labelstudio.py  # Export converter
+│   ├── validate_annotations.py     # QA/validation
+│   └── README.md             # Detailed Label Studio documentation
+├── downloaded_images/        # Watch images organized by model
+├── alignment_labels/         # Annotation data (internal format)
+├── templates/                # Template images for alignment
+└── utils/                    # Utility modules
+    ├── filename_parser.py    # Parse watch image filenames
+    ├── image_manager.py      # File operations
+    ├── alignment_manager.py  # Annotation management
+    └── template_manager.py   # Template handling
+```
 
-## Installation
+## 🏷️ Annotation Workflow
 
-### Quick Start (Recommended - with Virtual Environment)
+### Keypoint Labeling
 
-1. **Clone this repository:**
-   ```bash
-   git clone <your-repo-url>
-   cd watch-image-tagging-tool
-   ```
+Annotate 5 keypoints on each watch face image:
 
-2. **Run the setup script:**
-   ```bash
-   chmod +x setup.sh
-   ./setup.sh
-   ```
+1. **Top** (red) - Top center of watch face
+2. **Bottom** (blue) - Bottom center of watch face
+3. **Left** (yellow) - Leftmost point of watch face
+4. **Right** (purple) - Rightmost point of watch face
+5. **Center** (orange) - Center point of watch face
 
-   This will:
-   - Create a Python virtual environment (`venv/`)
-   - Install all required dependencies
-   - Prepare the app for use
+### Tips
+- Use zoom to precisely place keypoints
+- Follow consistent keypoint placement across all images
+- Mark crop ROI if needed for alignment
 
-3. **Run the app:**
-   ```bash
-   ./run_app.sh
-   ```
+## 🔄 Data Conversion
 
-   The launch script automatically activates the virtual environment and starts the app.
-
----
-
-### Manual Setup Options
-
-#### Option 1: Using Virtual Environment (Manual)
-
-1. **Clone this repository:**
-   ```bash
-   git clone <your-repo-url>
-   cd watch-image-tagging-tool
-   ```
-
-2. **Create virtual environment:**
-   ```bash
-   python3 -m venv venv
-   ```
-
-3. **Activate virtual environment:**
-
-   On macOS/Linux:
-   ```bash
-   source venv/bin/activate
-   ```
-
-   On Windows:
-   ```bash
-   venv\Scripts\activate
-   ```
-
-4. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-5. **Run the app:**
-   ```bash
-   ./run_app.sh
-   ```
-
-   Or manually:
-   ```bash
-   cd tagging
-   streamlit run app.py
-   ```
-
-#### Option 2: Using conda
-
-1. **Clone this repository:**
-   ```bash
-   git clone <your-repo-url>
-   cd watch-image-tagging-tool
-   ```
-
-2. **Create conda environment:**
-   ```bash
-   conda create -n watch-tagging python=3.9
-   conda activate watch-tagging
-   ```
-
-3. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Run the app:**
-   ```bash
-   ./run_app.sh
-   ```
-
-#### Option 3: System Python (Not Recommended)
-
-Only use this if you understand Python dependency management:
+### Export Annotations
 
 ```bash
-git clone <your-repo-url>
-cd watch-image-tagging-tool
-pip install -r requirements.txt
-./run_app.sh
+cd labelstudio
+
+# Export from Label Studio UI:
+# Project → Export → JSON format → Download
+
+# Convert back to internal format
+python export_from_labelstudio.py \
+    --input export.json \
+    --output-dir ../alignment_labels \
+    --merge
 ```
 
----
+### Validate Annotations
 
-### Image Data
+```bash
+cd labelstudio
 
-The repository includes all watch images in the `downloaded_images/` directory. The expected structure is:
+# Validate internal annotations
+python validate_annotations.py \
+    --input-dir ../alignment_labels \
+    --images-dir ../downloaded_images
 
-```
-downloaded_images/
-├── PATEK_nab_001/
-│   ├── PATEK_nab_001_01_face.jpg
-│   ├── PATEK_nab_001_02_face.jpg
-│   └── ...
-├── PATEK_nab_002/
-│   └── ...
-└── ...
+# Validate Label Studio export
+python validate_annotations.py \
+    --labelstudio-export export.json
 ```
 
-If you need to add more images, place them in the appropriate watch folder following the naming convention.
+## 📊 Data Formats
 
-## Usage Guide
+### Internal Format
+JSON files in `alignment_labels/` with normalized coordinates (0-1):
 
-### Viewing and Zooming Images
-
-- Images are displayed in a 2-column grid with **interactive zoom controls**
-- All images are **directly zoomable** - no need to open a separate view
-- Each image has a toolbar at the top with zoom/pan controls
-
-**How to Zoom and Pan:**
-- **Zoom In/Out**: Use your mouse scroll wheel OR click the zoom buttons in the toolbar
-- **Pan**: Click and drag anywhere on the image to move around
-- **Box Zoom**: Click and drag to select an area to zoom into
-- **Reset View**: Click the home/reset button in the toolbar to return to original view
-
-### Tagging Images
-
-**View Type:**
-- Select **face** for front-facing watch face views
-- Select **tiltface** for angled/tilted views
-
-**Details Quality:**
-- **Bad** (q1): Low detail quality, blurry, or poor image
-- **Partial** (q2): Medium detail quality, acceptable
-- **Full** (q3): High detail quality, clear and sharp
-
-Changes are saved immediately when you click a button.
-
-### Deleting Images
-
-1. Click the **"🗑️ Delete"** button below the image
-2. Image is immediately moved to `downloaded_images/.trash/{watch_id}/`
-3. Deleted images can be recovered from the trash folder if needed
-
-### Navigation
-
-- **Previous/Next** buttons at the top AND bottom to move between watch folders
-- Progress indicator shows current watch number (e.g., "1/72")
-- **Jump to Watch** dropdown in sidebar to select any watch directly
-
-### Sidebar Features
-
-**Statistics:**
-- **Total Images**: Total count across all watches
-- **Tagged/Untagged**: How many images have quality tags
-- **Deleted**: Number of images moved to trash
-- **Quality Distribution**: Count of Bad (q1), Partial (q2), and Full (q3) quality images
-
-**Jump to Watch:**
-- Dropdown showing all watches with their tagging progress
-- Shows format: `PATEK_nab_001 (2/4)` = 2 out of 4 images tagged
-- Checkmark (✓) appears when all images in a watch are tagged
-- Click to instantly jump to any watch
-
-**Refresh Statistics:**
-- Statistics update automatically when you make changes
-- Use "Refresh Statistics" button if needed
-
-### Alignment Annotation Mode
-
-The Alignment mode allows you to annotate 5 keypoints on each watch image for geometric alignment tasks. Simply click on the image to place keypoints in sequence.
-
-**How to Use:**
-
-1. Switch to "Alignment" mode in the sidebar
-2. Select quality filters (which images to annotate)
-   - Bad (q1): Low detail quality images
-   - Partial (q2): Medium detail quality images
-   - Full (q3): High detail quality images
-3. Select annotation status filter
-   - All images: Show all images matching quality filter
-   - Only unlabeled: Show images without complete annotations
-   - Only labeled: Show images with all 5 keypoints annotated
-4. For each image, **click directly on the image** to place 5 points in order:
-   - **TOP**: Topmost point of watch face
-   - **LEFT**: Leftmost point of watch face
-   - **RIGHT**: Rightmost point of watch face
-   - **BOTTOM**: Bottommost point of watch face
-   - **CENTER**: Center point of watch face
-5. Annotations save automatically after the 5th point is clicked
-6. Use "Clear & Re-annotate" to redo any image
-
-**Cross Helper Tool:**
-- Click "✛ Helper" button to show a rotatable cross overlay on the image
-- Two modes:
-  - **📍 Annotate Points**: Click to place keypoints (default mode)
-  - **🎯 Position Cross**: Click anywhere to move the cross center to that location
-- Use "🎛️ Fine-tune Controls" to adjust rotation, position, and size
-- The cross helps identify exact center points for precise annotation
-- Cross overlay does not interfere with clicks
-
-**Visual Feedback:**
-- Each clicked point appears as a red X marker on the image with a label (T, L, R, B, C)
-- Progress indicator shows which point to click next (e.g., "Click TOP (1/5)")
-- Status shows completion: "Points: 3/5" or "✅ 5/5 points annotated"
-- Previously placed points remain visible on the image
-- Image is automatically sized to fit your screen
-
-**Annotation Storage:**
-- Annotations stored in `alignment_labels/{watch_id}.json`
-- Coordinates normalized to [0, 1] range for resolution independence
-- Each annotation includes:
-  - Normalized coordinates for all 5 keypoints
-  - Original image size (width, height)
-  - Timestamp (ISO8601 format)
-  - Annotator identifier
-
-**JSON Format Example:**
 ```json
 {
-  "PATEK_nab_001_05_face_q3.jpg": {
-    "image_size": [1024, 768],
+  "PATEK_nab_001_01": {
+    "image_size": [2046, 1720],
     "coords_norm": {
-      "top": [0.50, 0.10],
-      "left": [0.20, 0.45],
-      "right": [0.80, 0.45],
-      "bottom": [0.50, 0.80],
-      "center": [0.50, 0.50]
+      "top": [0.232, 0.516],
+      "left": [0.487, 0.819],
+      "right": [0.486, 0.214],
+      "bottom": [0.745, 0.519],
+      "center": [0.488, 0.517]
     },
-    "annotator": "unknown",
-    "timestamp": "2025-12-03T10:15:00Z"
+    "crop_bbox": [0, 171, 2046, 1891]
   }
 }
 ```
 
-**Tips:**
-- Click precisely on the watch face boundaries for accurate keypoints
-- Annotations persist across sessions - you can close and reopen the app
-- Re-annotating an image overwrites the previous annotation (no version history)
-- If you make a mistake, use "Clear & Re-annotate" to start over
-- The image is scaled to fit your screen, but coordinates are saved at full resolution
+### Label Studio Format
+Tasks with pre-annotations for import/export. See `labelstudio/README.md` for details.
 
-## Filename Format
+## 🛠️ Tools
 
-Tagged images follow this format:
-```
-{WATCH_ID}_{VIEW_NUM}_{VIEW_TYPE}_q{QUALITY}.jpg
-```
+| Script | Purpose |
+|--------|---------|
+| `convert_to_labelstudio.py` | Convert internal annotations to Label Studio tasks |
+| `export_from_labelstudio.py` | Convert Label Studio export back to internal format |
+| `validate_annotations.py` | Validate annotation completeness and correctness |
+| `ml_predictions.py` | ML-assisted pre-annotation (future) |
 
-Examples:
-- `PATEK_nab_042_04_face_q3.jpg` - face view, full quality
-- `PATEK_nab_049_06_tiltface_q2.jpg` - tiltface view, partial quality
-- `PATEK_nab_001_03_face_q1.jpg` - face view, bad quality
-
-## Project Structure
-
-```
-watch-image-tagging-tool/
-├── README.md                   # This file
-├── requirements.txt            # Python dependencies
-├── run_app.sh                  # Launch script
-├── tagging/                    # Application code
-│   ├── __init__.py
-│   ├── app.py                  # Main Streamlit application
-│   ├── image_manager.py        # Core business logic & file operations
-│   ├── filename_parser.py      # Filename parsing/generation
-│   ├── alignment_manager.py    # Alignment annotation management
-│   └── README.md               # Detailed usage guide
-├── alignment_labels/           # Alignment annotations (JSON files)
-│   ├── PATEK_nab_001.json
-│   ├── PATEK_nab_002.json
-│   └── ...
-└── downloaded_images/          # Your watch images (one folder per watch)
-    ├── PATEK_nab_001/
-    ├── PATEK_nab_002/
-    ├── ...
-    └── .trash/                 # Deleted images (organized by watch_id)
-        ├── PATEK_nab_001/
-        └── ...
-```
-
-## Tips
-
-- Images are larger in the 2-column layout for better detail inspection
-- Use the sidebar statistics to track your overall progress
-- Jump to watch dropdown is useful for skipping to specific watches or reviewing completed ones
-- Checkmarks (✓) in the watch dropdown indicate fully tagged watches
-- Quality tags help filter training data by image clarity
-- Deleted images can be recovered from the `.trash/` folder
-- Statistics update automatically as you tag images
-- Navigation buttons at both top and bottom save scrolling time
-
-## Troubleshooting
-
-### "No watch folders found in downloaded_images/"
-- Make sure you have watch folders in the `downloaded_images/` directory
-- Each folder should contain `.jpg` image files
-
-### Port already in use
-- Streamlit default port is 8501
-- If it's already in use, Streamlit will automatically try the next port
-- You can specify a different port: `streamlit run app.py --server.port 8502`
+## 🔍 Troubleshooting
 
 ### Images not loading
-- Check that image files are in `.jpg` format
-- Ensure filenames match the expected pattern: `{WATCH_ID}_{VIEW_NUM}_{VIEW_TYPE}.jpg`
+1. Check `LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED=true` in docker-compose.yml
+2. Verify `../downloaded_images` is mounted correctly
+3. Ensure image URL format: `/data/local-files/?d=FOLDER/IMAGE.jpg`
 
-## Technical Details
+### Import errors
+1. Validate tasks file: `python validate_annotations.py --labelstudio-export tasks.json`
+2. Check image paths match mounted directory structure
 
-- **UI Framework**: Streamlit
-- **Image Processing**: Pillow (PIL)
-- **Interactive Zoom**: Plotly (for tagging mode)
-- **Alignment Annotation**: streamlit-image-coordinates (for click-based point placement)
-- **File Operations**: Python standard library (os, shutil)
-- **Data Storage**: JSON files for alignment annotations
+### Docker permissions
+```bash
+cd labelstudio
+mkdir -p data
+chmod 777 data
+```
 
-## License
+## 📚 Documentation
 
-[Add your license here]
+- **Detailed Label Studio setup**: See `labelstudio/README.md`
+- **Migration plan**: See `Migration-Plan.md`
 
-## Contributing
+## 🤝 Contributing
 
-[Add contribution guidelines here]
+When adding new annotations:
+1. Export from Label Studio (JSON format)
+2. Validate: `python validate_annotations.py --labelstudio-export export.json`
+3. Convert to internal format: `python export_from_labelstudio.py --input export.json --output-dir ../alignment_labels --merge`
+4. Commit annotation JSON files to git
+
+## 📝 License
+
+Internal tool for watch image annotation.

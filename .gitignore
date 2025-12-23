@@ -34,15 +34,26 @@ env/
 *~
 .DS_Store
 
-# Streamlit
-.streamlit/
+# Label Studio
+labelstudio/data/
+labelstudio/mydata/
+labelstudio/*.log
+labelstudio/export_*.json
+labelstudio/tasks_*.json
+
+# Predictions
+/alignment_labels_predicted/*
 
 # Jupyter Notebook
 .ipynb_checkpoints
 
-# Trash folder (deleted images - optional, remove this line if you want to track deletions)
+# Trash folder (deleted images)
 downloaded_images/.trash/
 
 # Environment variables
 .env
 .env.local
+
+# Temporary export files
+*.tmp
+export_*.json

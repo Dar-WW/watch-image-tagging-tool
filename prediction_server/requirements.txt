@@ -1,0 +1,19 @@
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.5.0
+pyyaml>=6.0.1
+
+# Core ML dependencies
+torch>=2.0.0
+opencv-python>=4.8.0
+numpy>=1.24.0
+
+# YOLO
+ultralytics>=8.0.0
+
+# LoFTR
+kornia>=0.7.0
+kornia-moons>=0.2.0
+
+# Image processing
+pillow>=10.0.0
