@@ -709,7 +709,7 @@ def filter_images_for_alignment(
     return filtered
 
 
-def render_template_annotation_section(template_manager: TemplateManager, template_name: str = "nab"):
+def render_template_annotation_section(template_manager: TemplateManager, template_name: str = "nam"):
     """Render expandable section for annotating template image.
 
     Args:
@@ -1216,7 +1216,7 @@ def render_alignment_card(
             st.divider()
 
             template_manager = st.session_state.template_manager
-            template_name = "nab"
+            template_name = "nam"
 
             # Check if template is annotated
             if not template_manager.is_template_labeled(template_name):
