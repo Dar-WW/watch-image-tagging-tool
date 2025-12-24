@@ -99,6 +99,28 @@ def extract_watch_id(filename: str) -> Optional[str]:
     return match.group(1) if match else None
 
 
+def extract_model_name(watch_id: str) -> Optional[str]:
+    """Extract model name from watch ID.
+
+    Args:
+        watch_id: Watch ID (e.g., "PATEK_nab_042")
+
+    Returns:
+        Model name if found (e.g., "nab"), None otherwise
+
+    Examples:
+        >>> extract_model_name("PATEK_nab_042")
+        "nab"
+        >>> extract_model_name("ROLEX_sub_015")
+        "sub"
+    """
+    parts = watch_id.split('_')
+    # Expected format: BRAND_MODEL_NUMBER
+    if len(parts) >= 3:
+        return parts[1]  # Return the model name (middle part)
+    return None
+
+
 def get_image_id(filename: str) -> Optional[str]:
     """Extract quality-agnostic image ID from filename.
 

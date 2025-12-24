@@ -19,7 +19,7 @@ from io import BytesIO
 from streamlit_image_coordinates import streamlit_image_coordinates
 
 from image_manager import ImageManager
-from filename_parser import ImageMetadata
+from filename_parser import ImageMetadata, extract_model_name
 from alignment_manager import AlignmentManager
 from template_manager import TemplateManager
 from typing import List, Optional
@@ -714,7 +714,7 @@ def render_template_annotation_section(template_manager: TemplateManager, templa
 
     Args:
         template_manager: TemplateManager instance
-        template_name: Template name (default: "nab")
+        template_name: Template name (e.g., "nab", "sub"). Should be extracted from watch_id.
     """
     with st.expander("📐 Template Annotation", expanded=False):
         st.write("**Annotate the template image with 5 keypoints**")
@@ -1216,7 +1216,12 @@ def render_alignment_card(
             st.divider()
 
             template_manager = st.session_state.template_manager
-            template_name = "nam"
+            # Extract model name from watch_id (e.g., "nab" from "PATEK_nab_042")
+            template_name = extract_model_name(image_meta.watch_id)
+
+            if template_name is None:
+                st.error(f"❌ Could not extract model name from watch ID: {image_meta.watch_id}")
+                return
 
             # Check if template is annotated
             if not template_manager.is_template_labeled(template_name):
@@ -1292,8 +1297,16 @@ def render_alignment_view(manager: ImageManager, alignment_manager: AlignmentMan
     render_navigation(manager, current_num, total_watches, key_suffix="align_top")
     st.divider()
 
+    # Extract model name from current watch (e.g., "nab" from "PATEK_nab_042")
+    template_name = extract_model_name(current_watch)
+
+    if template_name is None:
+        st.error(f"❌ Could not extract model name from watch ID: {current_watch}")
+        st.write("Expected format: BRAND_MODEL_NUMBER (e.g., PATEK_nab_042)")
+        return
+
     # Template annotation section
-    render_template_annotation_section(st.session_state.template_manager)
+    render_template_annotation_section(st.session_state.template_manager, template_name)
     st.divider()
 
     # Load images for current watch
