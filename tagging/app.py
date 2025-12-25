@@ -47,6 +47,10 @@ def init_session_state():
         st.session_state.watch_cache_keys = {}
         # Structure: {watch_id: cache_key_int}
 
+    # Discard confirmation dialog state
+    if 'show_discard_confirm' not in st.session_state:
+        st.session_state.show_discard_confirm = False
+
     if 'view_mode' not in st.session_state:
         st.session_state.view_mode = "Tagging"
 
@@ -425,16 +429,23 @@ def render_image_card(image_meta: ImageMetadata, idx: int):
 
             # Details Quality selector (shows pending state)
             st.write("**Details Quality:**")
+
             quality_cols = st.columns(3)
             quality = None
 
-            # Map quality values to labels
+            # Map quality values to labels and color dots
             quality_labels = {1: "Bad", 2: "Partial", 3: "Full"}
+            quality_dots = {1: "🔴", 2: "🟡", 3: "🟢"}  # red, yellow, green circles
 
             for i, q in enumerate([1, 2, 3]):
                 with quality_cols[i]:
-                    button_type = "primary" if pending_quality == q else "secondary"
-                    if st.button(quality_labels[q], key=f"qual_{stable_id}_{q}", type=button_type, width='stretch'):
+                    is_selected = pending_quality == q
+                    button_type = "primary" if is_selected else "secondary"
+
+                    # Add colored dot when selected
+                    label = f"{quality_dots[q]} {quality_labels[q]}" if is_selected else quality_labels[q]
+
+                    if st.button(label, key=f"qual_{stable_id}_{q}", type=button_type, use_container_width=True):
                         quality = q
 
             # If quality button clicked or view type changed, update pending changes
@@ -1471,11 +1482,40 @@ def render_alignment_view(manager: ImageManager, alignment_manager: AlignmentMan
     render_navigation(manager, current_num, total_watches, key_suffix="align_bottom")
 
 
+@st.dialog("Confirm Discard Changes")
+def show_discard_confirmation():
+    """Show confirmation dialog for discarding changes."""
+    tag_count, delete_count = st.session_state.pending_changes.get_changes_count()
+
+    st.warning(f"Are you sure you want to discard all pending changes?")
+    st.write(f"This will remove:")
+    st.write(f"• **{tag_count}** tag changes")
+    st.write(f"• **{delete_count}** deletions")
+    st.write("")
+    st.write("**This action cannot be undone.**")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("✅ Yes, Discard All", type="primary", use_container_width=True):
+            st.session_state.pending_changes.clear_all()
+            st.session_state.show_discard_confirm = False
+            st.success("All pending changes have been discarded")
+            st.rerun()
+    with col2:
+        if st.button("❌ Cancel", type="secondary", use_container_width=True):
+            st.session_state.show_discard_confirm = False
+            st.rerun()
+
+
 def main():
     """Main application."""
     init_session_state()
 
     manager = st.session_state.manager
+
+    # Show discard confirmation dialog if needed
+    if st.session_state.show_discard_confirm:
+        show_discard_confirmation()
 
     # Sidebar - Mode selector at the top
     with st.sidebar:
@@ -1494,51 +1534,6 @@ def main():
             st.rerun()
 
         st.divider()
-
-        # Pending changes section (only in Tagging mode)
-        if st.session_state.view_mode == "Tagging":
-            tag_count, delete_count = st.session_state.pending_changes.get_changes_count()
-            has_changes = st.session_state.pending_changes.has_changes()
-
-            if has_changes:
-                st.header("💾 Pending Changes")
-                st.write(f"✏️ **{tag_count}** tag changes")
-                st.write(f"🗑️ **{delete_count}** deletions")
-
-                # Save button
-                if st.button("💾 Save All Changes", type="primary", use_container_width=True, key="save_top"):
-                    with st.spinner("Applying changes..."):
-                        renames, deletes, errors = st.session_state.pending_changes.apply_changes(
-                            st.session_state.manager
-                        )
-
-                        # Clear ALL caches to ensure fresh data after file operations
-                        load_images_cached.clear()
-                        load_image_cached.clear()
-                        create_zoomable_image.clear()
-
-                        # Also invalidate watch-specific cache keys
-                        for watch_id in st.session_state.manager.watches:
-                            invalidate_watch_cache(watch_id)
-
-                        st.session_state.refresh_trigger += 1
-
-                        if errors:
-                            st.error(f"Completed with {len(errors)} errors")
-                            for error in errors[:5]:  # Show first 5 errors
-                                st.error(error)
-                        else:
-                            st.success(f"✅ Applied {renames} renames and {deletes} deletions")
-
-                        st.rerun()
-
-                # Discard button
-                if st.button("🚫 Discard All Changes", type="secondary", use_container_width=True, key="discard_top"):
-                    st.session_state.pending_changes.clear_all()
-                    st.success("Discarded all pending changes")
-                    st.rerun()
-
-                st.divider()
 
         # Alignment-specific sidebar filters
         if st.session_state.view_mode == "Alignment":
@@ -1659,8 +1654,7 @@ def main():
 
                 # Discard button
                 if st.button("🚫 Discard All Changes", type="secondary", use_container_width=True):
-                    st.session_state.pending_changes.clear_all()
-                    st.success("Discarded all pending changes")
+                    st.session_state.show_discard_confirm = True
                     st.rerun()
 
                 st.divider()
