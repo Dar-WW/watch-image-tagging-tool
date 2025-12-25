@@ -1,4 +1,67 @@
 {
-  "pending_tags": {},
-  "pending_deletes": []
+  "pending_tags": {
+    "PATEK_nam_025_01_face.jpg": {
+      "original_filename": "PATEK_nam_025_01_face.jpg",
+      "new_view_type": "face",
+      "new_quality": 2,
+      "watch_id": "PATEK_nam_025"
+    },
+    "PATEK_nam_026_02_face.jpg": {
+      "original_filename": "PATEK_nam_026_02_face.jpg",
+      "new_view_type": "tiltface",
+      "new_quality": 3,
+      "watch_id": "PATEK_nam_026"
+    },
+    "PATEK_nam_026_04_face.jpg": {
+      "original_filename": "PATEK_nam_026_04_face.jpg",
+      "new_view_type": "tiltface",
+      "new_quality": 3,
+      "watch_id": "PATEK_nam_026"
+    },
+    "PATEK_nam_026_03_face.jpg": {
+      "original_filename": "PATEK_nam_026_03_face.jpg",
+      "new_view_type": "face",
+      "new_quality": 2,
+      "watch_id": "PATEK_nam_026"
+    },
+    "PATEK_nam_026_05_face.jpg": {
+      "original_filename": "PATEK_nam_026_05_face.jpg",
+      "new_view_type": "face",
+      "new_quality": 3,
+      "watch_id": "PATEK_nam_026"
+    },
+    "PATEK_nam_026_06_face.jpg": {
+      "original_filename": "PATEK_nam_026_06_face.jpg",
+      "new_view_type": "tiltface",
+      "new_quality": 3,
+      "watch_id": "PATEK_nam_026"
+    },
+    "PATEK_nam_026_08_face.jpg": {
+      "original_filename": "PATEK_nam_026_08_face.jpg",
+      "new_view_type": "tiltface",
+      "new_quality": 3,
+      "watch_id": "PATEK_nam_026"
+    },
+    "PATEK_nam_026_07_face.jpg": {
+      "original_filename": "PATEK_nam_026_07_face.jpg",
+      "new_view_type": "face",
+      "new_quality": 3,
+      "watch_id": "PATEK_nam_026"
+    },
+    "PATEK_nam_026_09_face.jpg": {
+      "original_filename": "PATEK_nam_026_09_face.jpg",
+      "new_view_type": "face",
+      "new_quality": 3,
+      "watch_id": "PATEK_nam_026"
+    },
+    "PATEK_nam_026_10_face.jpg": {
+      "original_filename": "PATEK_nam_026_10_face.jpg",
+      "new_view_type": "tiltface",
+      "new_quality": 1,
+      "watch_id": "PATEK_nam_026"
+    }
+  },
+  "pending_deletes": [
+    "PATEK_nam_026_01_face.jpg"
+  ]
 }
