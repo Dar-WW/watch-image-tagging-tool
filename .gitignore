@@ -42,6 +42,8 @@ env/
 
 # Trash folder (deleted images - optional, remove this line if you want to track deletions)
 downloaded_images/.trash/
+downloaded_images/*
+alignment_labels/*
 
 # Environment variables
 .env

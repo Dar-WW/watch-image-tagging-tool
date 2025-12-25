@@ -6,6 +6,7 @@ Handles parsing and generating filenames with the format:
 Examples:
     - PATEK_nab_042_04_face_q3.jpg (face view, quality 3)
     - PATEK_nab_049_06_tiltface_q2.jpg (tiltface view, quality 2)
+    - PATEK_nab_050_02_back_q1.jpg (back view, quality 1)
     - PATEK_nab_001_03_face.jpg (legacy format without quality)
 """
 
@@ -20,7 +21,7 @@ class ImageMetadata:
     """Metadata extracted from image filename."""
     watch_id: str          # e.g., "PATEK_nab_042"
     view_number: str       # e.g., "04" (keep as string to preserve leading zero)
-    view_type: str         # "face" or "tiltface"
+    view_type: str         # "face", "tiltface", or "back"
     quality: Optional[int] # 1, 2, 3, or None
     filename: str          # Original filename
     full_path: str         # Full path to the file
@@ -38,7 +39,7 @@ def parse_filename(filepath: str) -> Optional[ImageMetadata]:
     filename = os.path.basename(filepath)
 
     # Pattern with quality tag: PATEK_nab_042_04_face_q3.jpg
-    pattern_tagged = r'^(.+?)_(\d{2})_(face|tiltface)_q([123])\.jpg$'
+    pattern_tagged = r'^(.+?)_(\d{2})_(face|tiltface|back)_q([123])\.jpg$'
     match = re.match(pattern_tagged, filename)
 
     if match:
@@ -52,7 +53,7 @@ def parse_filename(filepath: str) -> Optional[ImageMetadata]:
         )
 
     # Pattern without quality tag (legacy): PATEK_nab_042_04_face.jpg
-    pattern_legacy = r'^(.+?)_(\d{2})_(face|tiltface)\.jpg$'
+    pattern_legacy = r'^(.+?)_(\d{2})_(face|tiltface|back)\.jpg$'
     match = re.match(pattern_legacy, filename)
 
     if match:
@@ -141,7 +142,7 @@ def get_image_id(filename: str) -> Optional[str]:
         "PATEK_nab_041_05"
     """
     # Pattern with quality tag: PATEK_nab_042_04_face_q3.jpg
-    pattern_tagged = r'^(.+?)_(\d{2})_(face|tiltface)_q[123]\.jpg$'
+    pattern_tagged = r'^(.+?)_(\d{2})_(face|tiltface|back)_q[123]\.jpg$'
     match = re.match(pattern_tagged, filename)
 
     if match:
@@ -149,7 +150,7 @@ def get_image_id(filename: str) -> Optional[str]:
         return f"{match.group(1)}_{match.group(2)}"
 
     # Pattern without quality tag (legacy): PATEK_nab_042_04_face.jpg
-    pattern_legacy = r'^(.+?)_(\d{2})_(face|tiltface)\.jpg$'
+    pattern_legacy = r'^(.+?)_(\d{2})_(face|tiltface|back)\.jpg$'
     match = re.match(pattern_legacy, filename)
 
     if match:

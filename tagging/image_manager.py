@@ -94,7 +94,7 @@ class ImageManager:
 
         Args:
             image_meta: Current image metadata
-            new_view_type: New view type ("face" or "tiltface")
+            new_view_type: New view type ("face", "tiltface", or "back")
             new_quality: New quality (1, 2, 3, or None)
 
         Returns:

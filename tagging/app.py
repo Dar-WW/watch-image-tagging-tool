@@ -2,7 +2,7 @@
 
 MVP version with core functionality:
 - View images in grid
-- Tag view_type (face/tiltface) and quality (1/2/3)
+- Tag view_type (face/tiltface/back) and quality (1/2/3)
 - Delete images
 - Navigate between watches
 """
@@ -42,8 +42,18 @@ def init_session_state():
     if 'refresh_trigger' not in st.session_state:
         st.session_state.refresh_trigger = 0
 
+    # Per-watch cache invalidation keys
+    if 'watch_cache_keys' not in st.session_state:
+        st.session_state.watch_cache_keys = {}
+        # Structure: {watch_id: cache_key_int}
+
     if 'view_mode' not in st.session_state:
         st.session_state.view_mode = "Tagging"
+
+    # Pending changes manager
+    if 'pending_changes' not in st.session_state:
+        from pending_changes_manager import PendingChangesManager
+        st.session_state.pending_changes = PendingChangesManager()
 
     # Alignment manager
     if 'alignment_manager' not in st.session_state:
@@ -114,16 +124,96 @@ def init_session_state():
         # Structure: {"image_filename.jpg": "annotate" or "position"}
 
 
-def create_zoomable_image(img: Image.Image, filename: str = ""):
+def get_watch_cache_key(watch_id: str) -> int:
+    """Get the cache key for a specific watch.
+
+    Args:
+        watch_id: Watch ID
+
+    Returns:
+        Current cache key for the watch
+    """
+    if watch_id not in st.session_state.watch_cache_keys:
+        st.session_state.watch_cache_keys[watch_id] = 0
+    return st.session_state.watch_cache_keys[watch_id]
+
+
+def invalidate_watch_cache(watch_id: str):
+    """Invalidate the cache for a specific watch only.
+
+    Args:
+        watch_id: Watch ID to invalidate
+    """
+    if watch_id not in st.session_state.watch_cache_keys:
+        st.session_state.watch_cache_keys[watch_id] = 0
+    st.session_state.watch_cache_keys[watch_id] += 1
+
+
+@st.cache_data(show_spinner=False, ttl=None)
+def load_images_cached(images_dir: str, watch_id: str, _cache_key: int = 0, _dir_mtime: float = 0):
+    """Cached version of load_images for a specific watch.
+
+    Args:
+        images_dir: Path to images directory
+        watch_id: Watch folder name
+        _cache_key: Cache invalidation key (increment to invalidate this watch only)
+        _dir_mtime: Directory modification time (for automatic cache invalidation)
+
+    Returns:
+        List of ImageMetadata for images in the watch folder
+    """
+    from image_manager import ImageManager
+    manager = ImageManager(images_dir)
+    watch_path = os.path.join(images_dir, watch_id)
+
+    if not os.path.exists(watch_path):
+        return []
+
+    # Use proper parser from filename_parser module
+    from filename_parser import parse_filename
+
+    images = []
+    for filename in os.listdir(watch_path):
+        if not filename.endswith('.jpg'):
+            continue
+
+        filepath = os.path.join(watch_path, filename)
+        parsed = parse_filename(filepath)
+        if parsed:
+            images.append(parsed)
+
+    # Sort by view number
+    images.sort(key=lambda x: x.view_number)
+    return images
+
+
+@st.cache_resource(show_spinner=False)
+def load_image_cached(filepath: str):
+    """Cached image loading to avoid repeated disk I/O.
+
+    Args:
+        filepath: Full path to image file
+
+    Returns:
+        PIL Image object
+    """
+    return Image.open(filepath)
+
+
+@st.cache_data(show_spinner=False, ttl=None)
+def create_zoomable_image(filepath: str, filename: str = ""):
     """Create an interactive zoomable image using Plotly.
 
     Args:
-        img: PIL Image object
+        filepath: Path to image file
         filename: Filename to display
 
     Returns:
         Plotly figure with zoom/pan controls
     """
+    # Load image (cached)
+    img = load_image_cached(filepath)
+
     # Convert PIL image to numpy array
     img_array = np.array(img)
 
@@ -162,15 +252,24 @@ def create_zoomable_image(img: Image.Image, filename: str = ""):
     return fig, config
 
 
-def calculate_statistics(manager):
+@st.cache_data(show_spinner=False, ttl=None)
+def calculate_statistics(images_dir: str, trash_dir: str, watches: tuple, _cache_key: int):
     """Calculate tagging statistics across all watches.
 
     Args:
-        manager: ImageManager instance
+        images_dir: Path to images directory
+        trash_dir: Path to trash directory
+        watches: Tuple of watch IDs (must be tuple for caching)
+        _cache_key: Cache invalidation key (increment to invalidate)
 
     Returns:
         Dictionary with statistics
     """
+    # Create temporary manager for loading images
+    from image_manager import ImageManager
+    manager = ImageManager(images_dir)
+    manager.watches = list(watches)
+
     stats = {
         'total_images': 0,
         'tagged_images': 0,
@@ -181,16 +280,19 @@ def calculate_statistics(manager):
     }
 
     # Count deleted images
-    if os.path.exists(manager.trash_dir):
-        for watch_id in manager.watches:
-            trash_watch_dir = os.path.join(manager.trash_dir, watch_id)
+    if os.path.exists(trash_dir):
+        for watch_id in watches:
+            trash_watch_dir = os.path.join(trash_dir, watch_id)
             if os.path.exists(trash_watch_dir):
                 deleted_count = len([f for f in os.listdir(trash_watch_dir) if f.endswith('.jpg')])
                 stats['deleted_images'] += deleted_count
 
     # Calculate per-watch statistics
-    for watch_id in manager.watches:
-        images = manager.load_images(watch_id)
+    for watch_id in watches:
+        cache_key = get_watch_cache_key(watch_id)
+        watch_path = os.path.join(images_dir, watch_id)
+        dir_mtime = os.path.getmtime(watch_path) if os.path.exists(watch_path) else 0
+        images = load_images_cached(images_dir, watch_id, cache_key, dir_mtime)
         total = len(images)
         tagged = sum(1 for img in images if img.quality is not None)
 
@@ -219,7 +321,7 @@ def calculate_filtered_watches(manager, quality_filters, view_type_filter, min_i
     Args:
         manager: ImageManager instance
         quality_filters: List of quality values to include (e.g., [2, 3] for q2 and q3)
-        view_type_filter: "face" for face only, "both" for face + tiltface
+        view_type_filter: "face" for face only, "all" for all view types (face + tiltface + back)
         min_images: Minimum number of matching images required per watch
 
     Returns:
@@ -232,7 +334,10 @@ def calculate_filtered_watches(manager, quality_filters, view_type_filter, min_i
     }
 
     for watch_id in manager.watches:
-        images = manager.load_images(watch_id)
+        cache_key = get_watch_cache_key(watch_id)
+        watch_path = os.path.join(manager.images_dir, watch_id)
+        dir_mtime = os.path.getmtime(watch_path) if os.path.exists(watch_path) else 0
+        images = load_images_cached(manager.images_dir, watch_id, cache_key, dir_mtime)
 
         # Filter images based on criteria
         matching_images = []
@@ -267,64 +372,83 @@ def render_image_card(image_meta: ImageMetadata, idx: int):
         idx: Index for unique widget keys
     """
     try:
-        # Load image
-        img = Image.open(image_meta.full_path)
+        # Use stable image ID (without quality tag) for widget keys
+        from filename_parser import get_image_id
+        stable_id = get_image_id(image_meta.filename)
+        if not stable_id:
+            stable_id = f"{image_meta.watch_id}_{image_meta.view_number}"
 
-        # Display interactive zoomable image directly
-        fig, config = create_zoomable_image(img, filename=image_meta.filename)
-        st.plotly_chart(fig, use_container_width=True, config=config, key=f"plot_{idx}")
+        # Check if this image is marked for deletion
+        is_deleted = st.session_state.pending_changes.is_pending_delete(image_meta.filename)
 
-        # Show filename
-        st.caption(f"**{image_meta.filename}**")
-        st.caption("💡 Use toolbar to zoom/pan | Scroll to zoom | Click & drag to pan")
+        # Get pending state (shows what will be applied on save)
+        pending_view, pending_quality = st.session_state.pending_changes.get_pending_state(image_meta)
 
-        # View type selector
-        current_view = image_meta.view_type if image_meta.view_type else "face"
-        view_type = st.radio(
-            "View type:",
-            options=["face", "tiltface"],
-            index=0 if current_view == "face" else 1,
-            key=f"view_{idx}",
-            horizontal=True,
-            label_visibility="collapsed"
-        )
+        # Display interactive zoomable image directly (cached)
+        fig, config = create_zoomable_image(image_meta.full_path, filename=image_meta.filename)
+        st.plotly_chart(fig, use_container_width=True, config=config, key=f"plot_{stable_id}")
 
-        # Details Quality selector
-        st.write("**Details Quality:**")
-        quality_cols = st.columns(3)
-        quality = None
+        # Show filename with status indicator
+        if is_deleted:
+            st.caption(f"~~**{image_meta.filename}**~~ 🗑️")
+        else:
+            has_pending_change = image_meta.filename in st.session_state.pending_changes.pending_tags
+            if has_pending_change:
+                st.caption(f"**{image_meta.filename}** ✏️ *Pending changes*")
+            else:
+                st.caption(f"**{image_meta.filename}**")
 
-        # Map quality values to labels
-        quality_labels = {1: "Bad", 2: "Partial", 3: "Full"}
+        # Show hint or deletion status
+        if is_deleted:
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.caption("**🗑️ MARKED FOR DELETION**")
+            with col2:
+                st.markdown('<div style="margin-top: -8px;">', unsafe_allow_html=True)
+                if st.button("↩️", key=f"undo_{stable_id}", help="Undo delete"):
+                    st.session_state.pending_changes.remove_delete(image_meta.filename)
+                    st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
+        else:
+            st.caption("💡 Use toolbar to zoom/pan | Scroll to zoom | Click & drag to pan")
 
-        for i, q in enumerate([1, 2, 3]):
-            with quality_cols[i]:
-                button_type = "primary" if image_meta.quality == q else "secondary"
-                if st.button(quality_labels[q], key=f"qual_{idx}_{q}", type=button_type, width='stretch'):
-                    quality = q
-
-        # If quality button clicked or view type changed, rename file
-        if quality is not None or view_type != current_view:
-            new_quality = quality if quality is not None else image_meta.quality
-            success, message = st.session_state.manager.rename_image(
-                image_meta, view_type, new_quality
+            # View type selector (shows pending state)
+            view_options = ["face", "tiltface", "back"]
+            view_type = st.radio(
+                "View type:",
+                options=view_options,
+                index=view_options.index(pending_view) if pending_view in view_options else 0,
+                key=f"view_{stable_id}",
+                horizontal=True,
+                label_visibility="collapsed"
             )
-            if success:
-                st.success(message, icon="✅")
-                st.session_state.refresh_trigger += 1
-                st.rerun()
-            else:
-                st.error(message, icon="❌")
 
-        # Delete button - direct deletion without confirmation
-        if st.button("🗑️ Delete", key=f"del_{idx}", type="secondary", width='stretch'):
-            success, message = st.session_state.manager.delete_image(image_meta)
-            if success:
-                st.success(message, icon="✅")
-                st.session_state.refresh_trigger += 1
+            # Details Quality selector (shows pending state)
+            st.write("**Details Quality:**")
+            quality_cols = st.columns(3)
+            quality = None
+
+            # Map quality values to labels
+            quality_labels = {1: "Bad", 2: "Partial", 3: "Full"}
+
+            for i, q in enumerate([1, 2, 3]):
+                with quality_cols[i]:
+                    button_type = "primary" if pending_quality == q else "secondary"
+                    if st.button(quality_labels[q], key=f"qual_{stable_id}_{q}", type=button_type, width='stretch'):
+                        quality = q
+
+            # If quality button clicked or view type changed, update pending changes
+            if quality is not None or view_type != pending_view:
+                new_quality = quality if quality is not None else pending_quality
+                st.session_state.pending_changes.add_tag_change(
+                    image_meta, view_type, new_quality
+                )
                 st.rerun()
-            else:
-                st.error(message, icon="❌")
+
+            # Delete button - mark for deletion
+            if st.button("🗑️ Delete", key=f"del_{stable_id}", type="secondary", width='stretch'):
+                st.session_state.pending_changes.add_delete(image_meta)
+                st.rerun()
 
     except Exception as e:
         st.error(f"Error loading image: {e}")
@@ -389,8 +513,8 @@ def render_trash_view(manager):
         for idx, (image_meta, deleted_time) in enumerate(images):
             with cols[idx % num_cols]:
                 try:
-                    # Load and display image (smaller for grid view)
-                    img = Image.open(image_meta.full_path)
+                    # Load and display image (smaller for grid view) - cached
+                    img = load_image_cached(image_meta.full_path)
                     st.image(img, width='stretch')
 
                     # Show details
@@ -402,6 +526,8 @@ def render_trash_view(manager):
                     if st.button("↩️ Restore", key=f"restore_{watch_id}_{idx}", width='stretch'):
                         success, message = manager.restore_image(image_meta)
                         if success:
+                            # Invalidate cache only for this watch
+                            invalidate_watch_cache(watch_id)
                             st.success(message, icon="✅")
                             st.session_state.refresh_trigger += 1
                             st.rerun()
@@ -728,7 +854,7 @@ def render_template_annotation_section(template_manager: TemplateManager, templa
             return
 
         try:
-            template_img = Image.open(template_path)
+            template_img = load_image_cached(template_path)
             template_size = template_img.size
 
             # Check if template is already labeled
@@ -926,8 +1052,8 @@ def render_alignment_card(
     Shows progress (Points: X/5) and Clear button.
     """
     try:
-        # Load image
-        img = Image.open(image_meta.full_path)
+        # Load image (cached)
+        img = load_image_cached(image_meta.full_path)
         img_size = img.size  # (width, height)
 
         # Session key for this image
@@ -1244,7 +1370,7 @@ def render_alignment_card(
                     # Load annotations
                     template_annotation = template_manager.load_template_annotations(template_name)
                     template_path = template_manager.get_template_path(template_name)
-                    template_img = Image.open(template_path)
+                    template_img = load_image_cached(template_path)
                     template_size = template_img.size
 
                     image_annotation = alignment_manager.get_image_annotation(watch_id, image_meta.filename)
@@ -1310,7 +1436,10 @@ def render_alignment_view(manager: ImageManager, alignment_manager: AlignmentMan
     st.divider()
 
     # Load images for current watch
-    images = manager.load_images()
+    cache_key = get_watch_cache_key(current_watch)
+    watch_path = os.path.join(manager.images_dir, current_watch)
+    dir_mtime = os.path.getmtime(watch_path) if os.path.exists(watch_path) else 0
+    images = load_images_cached(manager.images_dir, current_watch, cache_key, dir_mtime)
 
     if not images:
         st.info("No images found in this watch folder.")
@@ -1365,6 +1494,51 @@ def main():
             st.rerun()
 
         st.divider()
+
+        # Pending changes section (only in Tagging mode)
+        if st.session_state.view_mode == "Tagging":
+            tag_count, delete_count = st.session_state.pending_changes.get_changes_count()
+            has_changes = st.session_state.pending_changes.has_changes()
+
+            if has_changes:
+                st.header("💾 Pending Changes")
+                st.write(f"✏️ **{tag_count}** tag changes")
+                st.write(f"🗑️ **{delete_count}** deletions")
+
+                # Save button
+                if st.button("💾 Save All Changes", type="primary", use_container_width=True, key="save_top"):
+                    with st.spinner("Applying changes..."):
+                        renames, deletes, errors = st.session_state.pending_changes.apply_changes(
+                            st.session_state.manager
+                        )
+
+                        # Clear ALL caches to ensure fresh data after file operations
+                        load_images_cached.clear()
+                        load_image_cached.clear()
+                        create_zoomable_image.clear()
+
+                        # Also invalidate watch-specific cache keys
+                        for watch_id in st.session_state.manager.watches:
+                            invalidate_watch_cache(watch_id)
+
+                        st.session_state.refresh_trigger += 1
+
+                        if errors:
+                            st.error(f"Completed with {len(errors)} errors")
+                            for error in errors[:5]:  # Show first 5 errors
+                                st.error(error)
+                        else:
+                            st.success(f"✅ Applied {renames} renames and {deletes} deletions")
+
+                        st.rerun()
+
+                # Discard button
+                if st.button("🚫 Discard All Changes", type="secondary", use_container_width=True, key="discard_top"):
+                    st.session_state.pending_changes.clear_all()
+                    st.success("Discarded all pending changes")
+                    st.rerun()
+
+                st.divider()
 
         # Alignment-specific sidebar filters
         if st.session_state.view_mode == "Alignment":
@@ -1421,10 +1595,11 @@ def main():
             )
 
             # Update watch if selection changed
-            new_index = watch_options.index(selected_watch)
-            if new_index != manager.current_watch_index:
-                manager.set_watch_index(new_index)
-                st.rerun()
+            if selected_watch is not None:
+                new_index = watch_options.index(selected_watch)
+                if new_index != manager.current_watch_index:
+                    manager.set_watch_index(new_index)
+                    st.rerun()
 
             st.divider()
 
@@ -1446,14 +1621,59 @@ def main():
     # Sidebar - Only show statistics and navigation in Tagging mode
     if st.session_state.view_mode == "Tagging":
         with st.sidebar:
+            # Pending changes section
+            tag_count, delete_count = st.session_state.pending_changes.get_changes_count()
+            has_changes = st.session_state.pending_changes.has_changes()
+
+            if has_changes:
+                st.header("💾 Pending Changes")
+                st.write(f"✏️ **{tag_count}** tag changes")
+                st.write(f"🗑️ **{delete_count}** deletions")
+
+                # Save button
+                if st.button("💾 Save All Changes", type="primary", use_container_width=True):
+                    with st.spinner("Applying changes..."):
+                        renames, deletes, errors = st.session_state.pending_changes.apply_changes(
+                            st.session_state.manager
+                        )
+
+                        # Clear ALL caches to ensure fresh data after file operations
+                        load_images_cached.clear()
+                        load_image_cached.clear()
+                        create_zoomable_image.clear()
+
+                        # Also invalidate watch-specific cache keys
+                        for watch_id in st.session_state.manager.watches:
+                            invalidate_watch_cache(watch_id)
+
+                        st.session_state.refresh_trigger += 1
+
+                        if errors:
+                            st.error(f"Completed with {len(errors)} errors")
+                            for error in errors[:5]:  # Show first 5 errors
+                                st.error(error)
+                        else:
+                            st.success(f"✅ Applied {renames} renames and {deletes} deletions")
+
+                        st.rerun()
+
+                # Discard button
+                if st.button("🚫 Discard All Changes", type="secondary", use_container_width=True):
+                    st.session_state.pending_changes.clear_all()
+                    st.success("Discarded all pending changes")
+                    st.rerun()
+
+                st.divider()
+
             st.header("📊 Statistics")
 
-            # Calculate statistics (cached to avoid recalculating on every interaction)
-            if 'stats' not in st.session_state or st.session_state.refresh_trigger > st.session_state.get('last_stats_refresh', -1):
-                st.session_state.stats = calculate_statistics(manager)
-                st.session_state.last_stats_refresh = st.session_state.refresh_trigger
-
-            stats = st.session_state.stats
+            # Calculate statistics (cached - only recalculates when refresh_trigger changes)
+            stats = calculate_statistics(
+                manager.images_dir,
+                manager.trash_dir,
+                tuple(manager.watches),
+                st.session_state.refresh_trigger
+            )
 
             # Overall statistics
             st.metric("Total Images", stats['total_images'])
@@ -1492,16 +1712,19 @@ def main():
             )
 
             # Update watch if selection changed
-            new_index = watch_options.index(selected_label)
-            if new_index != manager.current_watch_index:
-                manager.set_watch_index(new_index)
-                st.rerun()
+            if selected_label is not None:
+                new_index = watch_options.index(selected_label)
+                if new_index != manager.current_watch_index:
+                    manager.set_watch_index(new_index)
+                    st.rerun()
 
             st.divider()
 
             # Refresh statistics button
             if st.button("🔄 Refresh Statistics", width='stretch'):
-                st.session_state.stats = calculate_statistics(manager)
+                # Clear cache and increment trigger to force recalculation
+                st.cache_data.clear()
+                st.session_state.refresh_trigger += 1
                 st.rerun()
 
             st.divider()
@@ -1529,8 +1752,8 @@ def main():
                 st.write("**View Type:**")
                 view_type_filter = st.radio(
                     "Include:",
-                    options=["face", "both"],
-                    format_func=lambda x: "Face only" if x == "face" else "Face + Tiltface",
+                    options=["face", "all"],
+                    format_func=lambda x: "Face only" if x == "face" else "All types (Face + Tiltface + Back)",
                     key="filter_view_type"
                 )
 
@@ -1578,7 +1801,10 @@ def main():
     st.divider()
 
     # Load and display images
-    images = manager.load_images()
+    cache_key = get_watch_cache_key(current_watch)
+    watch_path = os.path.join(manager.images_dir, current_watch)
+    dir_mtime = os.path.getmtime(watch_path) if os.path.exists(watch_path) else 0
+    images = load_images_cached(manager.images_dir, current_watch, cache_key, dir_mtime)
 
     if not images:
         st.info("No images found in this watch folder.")
