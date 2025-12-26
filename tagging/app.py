@@ -1661,6 +1661,15 @@ def main():
 
             st.header("📊 Statistics")
 
+            # Refresh statistics button at the top
+            if st.button("🔄 Refresh Statistics", use_container_width=True):
+                # Clear cache and increment trigger to force recalculation
+                st.cache_data.clear()
+                st.session_state.refresh_trigger += 1
+                st.rerun()
+
+            st.divider()
+
             # Calculate statistics (cached - only recalculates when refresh_trigger changes)
             stats = calculate_statistics(
                 manager.images_dir,
@@ -1711,15 +1720,6 @@ def main():
                 if new_index != manager.current_watch_index:
                     manager.set_watch_index(new_index)
                     st.rerun()
-
-            st.divider()
-
-            # Refresh statistics button
-            if st.button("🔄 Refresh Statistics", width='stretch'):
-                # Clear cache and increment trigger to force recalculation
-                st.cache_data.clear()
-                st.session_state.refresh_trigger += 1
-                st.rerun()
 
             st.divider()
 
