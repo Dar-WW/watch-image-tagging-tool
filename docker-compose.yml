@@ -24,35 +24,6 @@ services:
       - watch-network
     restart: unless-stopped
 
-  # Prediction Server - ML Backend
-  prediction-server:
-    build: ./prediction_server
-    container_name: watch-prediction-server
-    ports:
-      - "9090:9090"
-    volumes:
-      # Config file (read-only)
-      - ./prediction_server/config.yaml:/app/prediction_server/config.yaml:ro
-
-      # Shared images (read-only)
-      - ./downloaded_images:/label-studio/media/images:ro
-
-      # Cache directory (read-write for storing predictions)
-      - ./prediction_server/cache:/app/prediction_server/cache
-
-      # Template files (read-only)
-      - ./templates:/app/prediction_server/templates:ro
-
-      # YOLO model weights (read-only)
-      - ./prediction_server/models:/app/prediction_server/models:ro
-    environment:
-      - PYTHONUNBUFFERED=1
-    networks:
-      - watch-network
-    restart: unless-stopped
-    depends_on:
-      - label-studio
-
 networks:
   watch-network:
     driver: bridge

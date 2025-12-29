@@ -15,7 +15,114 @@ import json
 import re
 from collections import defaultdict
 from pathlib import Path
+
 from typing import Any, Dict, List, Optional, Tuple
+
+
+# --- Rotation correction utilities ---
+def parse_rotation_correction(results: List[Dict[str, Any]]) -> str:
+    """Extract rotation correction choice from Label Studio results.
+
+    Expected labeling config:
+      <Choices name="rotation_correction" ...>
+        <Choice value="0" />
+        <Choice value="90_cw" />
+        <Choice value="180" />
+        <Choice value="270_cw" />
+      </Choices>
+
+    Returns:
+        One of: "0", "90_cw", "180", "270_cw".
+        Defaults to "0" if not present.
+    """
+    for r in results:
+        if r.get("type") != "choices":
+            continue
+        # Depending on LS export, this can appear as from_name or name
+        if r.get("from_name") != "rotation_correction" and r.get("name") != "rotation_correction":
+            continue
+        value = r.get("value", {})
+        choices = value.get("choices", [])
+        if not choices:
+            return "0"
+        # Single choice expected
+        return str(choices[0])
+    return "0"
+
+
+def remap_keypoint_labels(rotation: str) -> Dict[str, str]:
+    """Return a mapping old_label -> new_label for 4-way compass labels.
+
+    This implements a *label remap* (keys change, coordinates stay the same).
+
+    Convention:
+      - rotation == "90_cw": rotate labels clockwise (top->right->bottom->left)
+      - rotation == "180": rotate labels 180 degrees
+      - rotation == "270_cw": rotate labels clockwise 270 degrees (equivalent to 90 CCW: top->left->bottom->right)
+
+    "center" is left unchanged.
+    """
+    if rotation == "90_cw":
+        return {
+            # NOTE: In practice we interpret the selected value as "image is rotated CW",
+            # so we remap labels in the opposite direction to correct them.
+            "top": "left",
+            "left": "bottom",
+            "bottom": "right",
+            "right": "top",
+            "center": "center",
+        }
+    if rotation == "180":
+        return {
+            "top": "bottom",
+            "bottom": "top",
+            "left": "right",
+            "right": "left",
+            "center": "center",
+        }
+    if rotation == "270_cw":
+        return {
+            "top": "right",
+            "right": "bottom",
+            "bottom": "left",
+            "left": "top",
+            "center": "center",
+        }
+
+    # "0" or unknown
+    return {
+        "top": "top",
+        "bottom": "bottom",
+        "left": "left",
+        "right": "right",
+        "center": "center",
+    }
+
+
+def apply_rotation_correction_to_coords(
+    coords_norm: Dict[str, List[float]],
+    rotation: str,
+    original_width: Optional[int],
+    original_height: Optional[int],
+) -> Dict[str, List[float]]:
+    """Apply rotation correction by remapping labels (keys) while keeping coords.
+
+    Note: `original_width` / `original_height` are intentionally unused in this
+    mode; they remain in the signature to avoid touching call sites.
+    """
+    if rotation in ("0", "", None):
+        return coords_norm
+
+    mapping = remap_keypoint_labels(rotation)
+
+    corrected: Dict[str, List[float]] = {}
+    for old_label, xy in coords_norm.items():
+        if not xy or len(xy) != 2:
+            continue
+        new_label = mapping.get(old_label, old_label)
+        corrected[new_label] = xy
+
+    return corrected
 
 
 def parse_rectangle_roi(
@@ -98,8 +205,9 @@ def extract_image_key_from_task(task: Dict[str, Any]) -> Optional[str]:
     # Try to extract from image path
     image_path = data.get("image", "")
 
-    # Extract filename from path (e.g., ".../PATEK_nab_001/PATEK_nab_001_01_face_q3.jpg")
-    match = re.search(r"(PATEK_\w+_\d+_\d+)", image_path)
+    # Extract filename from path (e.g., ".../BRAND_model_001/BRAND_model_001_01_face_q3.jpg")
+    # Pattern: BRAND_model_number_view (e.g., PATEK_nab_001_01, ROLEX_sub_042_03)
+    match = re.search(r"([A-Z]+_[a-z]+_\d+_\d+)", image_path)
     if match:
         return match.group(1)
 
@@ -165,6 +273,8 @@ def convert_task_to_internal(
         if "original_height" in result:
             original_height = result["original_height"]
 
+    rotation_correction = parse_rotation_correction(results)
+
     # Parse results
     for result in results:
         result_type = result.get("type", "")
@@ -176,13 +286,30 @@ def convert_task_to_internal(
                 crop_bbox = parse_rectangle_roi(result, original_width, original_height)
                 if crop_bbox:
                     internal["crop_bbox"] = crop_bbox
-                    internal["original_image_size"] = [original_width, original_height]
+                    internal["image_size"] = [original_width, original_height]
 
         elif result_type == "keypointlabels":
             keypoint = parse_keypoint(result)
             if keypoint:
                 name, coords = keypoint
                 internal["coords_norm"][name] = coords
+
+    # Apply optional rotation correction to keypoints
+    if internal.get("coords_norm"):
+        internal["coords_norm"] = apply_rotation_correction_to_coords(
+            internal["coords_norm"],
+            rotation_correction,
+            original_width,
+            original_height,
+        )
+
+    # Keep original image size if available (useful for downstream consumers)
+    if original_width and original_height and "image_size" not in internal:
+        internal["image_size"] = [original_width, original_height]
+
+    # Persist chosen correction for traceability
+    if rotation_correction and rotation_correction != "0":
+        internal["rotation_correction"] = rotation_correction
 
     # Extract full_image_name from task data if available
     data = task.get("data", {})

@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a Label Studio-based annotation tool for watch image keypoint labeling. The tool enables annotation of 5 keypoints (top, bottom, left, right, center) on watch face images for alignment model training. The project has migrated from a legacy Streamlit-based tool to a Label Studio setup with Docker deployment.
 
+**Multi-Model Support:** The system now supports multiple watch models with different face shapes. Templates are automatically selected based on the watch model identifier in the filename (e.g., "nab" for Nautilus, "nam" for Nautilus Moonphase).
+
 ## Key Commands
 
 ### Label Studio Operations
@@ -59,18 +61,24 @@ python validate_annotations.py --labelstudio-export export.json
 
 ### Image Naming Convention
 
-Images follow the pattern: `{WATCH_ID}_{VIEW_NUM}_{VIEW_TYPE}_q{QUALITY}.jpg`
+Images follow the pattern: `{BRAND}_{MODEL}_{WATCH_NUM}_{VIEW_NUM}_{VIEW_TYPE}_q{QUALITY}.jpg`
 
 Examples:
-- `PATEK_nab_042_04_face_q3.jpg` (face view, quality 3)
-- `PATEK_nab_049_06_tiltface_q2.jpg` (tiltface view, quality 2)
+- `PATEK_nab_042_04_face_q3.jpg` (Nautilus, face view, quality 3)
+- `PATEK_nam_001_01_face_q2.jpg` (Nautilus Moonphase, face view, quality 2)
+- `PATEK_nab_049_06_tiltface_q2.jpg` (Nautilus, tiltface view, quality 2)
 - `PATEK_nab_001_03_face.jpg` (legacy format without quality)
 
 Components:
-- `WATCH_ID`: e.g., "PATEK_nab_042"
+- `BRAND`: All caps brand name (e.g., "PATEK", "ROLEX")
+- `MODEL`: Lowercase model identifier (e.g., "nab", "nam") - **used for template selection**
+- `WATCH_NUM`: Three-digit watch number (e.g., "042", "001")
+- `WATCH_ID`: Combined `{BRAND}_{MODEL}_{WATCH_NUM}` (e.g., "PATEK_nab_042")
 - `VIEW_NUM`: Two-digit view number (e.g., "04")
 - `VIEW_TYPE`: "face" or "tiltface"
 - `QUALITY`: 1, 2, or 3 (optional in legacy format)
+
+**Important:** The `MODEL` identifier determines which template is used for keypoint prediction. Supported models are defined in `utils/model_mapper.py`.
 
 ### Annotation Data Format
 
@@ -134,9 +142,17 @@ Tasks with pre-annotations for import/export. Coordinates are in percent (0-100)
 Located in `utils/`:
 
 - **filename_parser.py**: Parse and validate image filenames, extract metadata
-  - `parse_filename()`: Extract watch_id, view_number, view_type, quality
+  - `parse_filename()`: Extract watch_id, view_number, view_type, quality, model_identifier
   - `get_image_id()`: Get quality-agnostic image ID (e.g., "PATEK_nab_041_05")
   - `extract_watch_id()`: Extract just the watch ID
+  - `extract_model_identifier()`: Extract model code (e.g., "nab", "nam") from filename
+
+- **model_mapper.py**: Map watch IDs to template models (multi-model support)
+  - `get_template_for_watch_id(watch_id)`: Map watch ID to template name
+  - `get_template_from_filename(filename)`: Get template from image filename
+  - `extract_model_identifier(watch_id)`: Extract model identifier from watch ID
+  - `register_model(model_id, template_name)`: Dynamically register new models
+  - `MODEL_TEMPLATE_MAP`: Central registry of model identifier → template mappings
 
 - **alignment_manager.py**: Manage annotation CRUD operations
   - `load_annotations(watch_id)`: Load all annotations for a watch
@@ -212,6 +228,25 @@ See `Migration-Plan.md` for planned prediction server architecture:
 2. Update validation script: `validate_annotations.py`
 3. Test round-trip conversion to ensure no data loss
 4. Update `labelstudio/labeling_config.xml` if annotation interface changes
+
+### Adding a New Watch Model
+
+To add support for a new watch model:
+
+1. **Register model**: Add to `MODEL_TEMPLATE_MAP` in `utils/model_mapper.py`:
+   ```python
+   MODEL_TEMPLATE_MAP = {
+       "nab": "nab",   # Nautilus
+       "nam": "nam",   # Nautilus Moonphase
+       "newmodel": "newmodel",  # Your new model
+   }
+   ```
+
+2. **Create template directory**:
+   - `templates/{model}/template.jpeg` - Reference image
+   - `templates/{model}/annotations.json` - 5 keypoints in normalized coords [0,1]
+
+3. **Use the model**: Images named `BRAND_{model}_XXX_YY_face_qZ.jpg` will automatically use the correct template
 
 ## Common Workflows
 

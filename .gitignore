@@ -57,3 +57,4 @@ downloaded_images/.trash/
 # Temporary export files
 *.tmp
 export_*.json
+/scripts/outputs/

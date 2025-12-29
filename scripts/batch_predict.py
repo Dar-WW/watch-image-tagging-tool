@@ -6,13 +6,14 @@ YOLO + LoFTR + Homography pipeline, and saves predictions to
 alignment_labels_predicted/ directory in the same format as alignment_labels/.
 
 Features:
+- Automatically deletes low quality (q1) images before processing
 - Resumable processing with progress tracking
 - Three-tier fallback strategy (full → pipeline → geometric)
 - Serial processing to avoid CPU overload
 - Comprehensive logging and error handling
 
 Usage:
-    # Basic usage - process all new images
+    # Basic usage - process all new images (deletes q1 images first)
     python scripts/batch_predict.py
 
     # Test on single watch model
@@ -185,6 +186,40 @@ class ImageScanner:
         self.images_dir = images_dir
         self.labels_dir = labels_dir
         self.output_dir = output_dir
+
+    def delete_low_quality_images(self, quality_threshold: int = 1) -> int:
+        """Delete images with quality at or below threshold.
+
+        Args:
+            quality_threshold: Delete images with quality <= this value (default: 1)
+
+        Returns:
+            Number of images deleted
+        """
+        logger.info(f"Scanning for images with quality <= {quality_threshold}...")
+
+        if not self.images_dir.exists():
+            logger.error(f"Images directory not found: {self.images_dir}")
+            return 0
+
+        deleted_count = 0
+
+        for watch_dir in sorted(self.images_dir.iterdir()):
+            if not watch_dir.is_dir():
+                continue
+
+            for image_file in sorted(watch_dir.glob("*.jpg")):
+                try:
+                    metadata = parse_filename(image_file.name)
+                    if metadata and metadata.quality is not None and metadata.quality <= quality_threshold:
+                        logger.info(f"Deleting low quality image: {image_file}")
+                        image_file.unlink()
+                        deleted_count += 1
+                except Exception as e:
+                    logger.warning(f"Error processing {image_file.name}: {e}")
+
+        logger.info(f"Deleted {deleted_count} low quality images")
+        return deleted_count
 
     def scan_images(self, skip_existing: bool = True, watch_id_filter: Optional[str] = None) \
             -> List[Tuple[Path, str, str]]:
@@ -571,7 +606,13 @@ class BatchProcessor:
 
         self.start_time = time.time()
 
+        # Delete low quality images before processing
+        logger.info("\nStep 1: Removing low quality images...")
+        deleted_count = self.scanner.delete_low_quality_images(quality_threshold=1)
+        logger.info(f"Removed {deleted_count} quality 1 images\n")
+
         # Scan for images to process
+        logger.info("Step 2: Scanning for images to process...")
         skip_existing = not self.force
         images_to_process = self.scanner.scan_images(
             skip_existing=skip_existing,

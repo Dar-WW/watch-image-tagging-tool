@@ -91,6 +91,7 @@ Or to start completely fresh:
 rm .batch_predict_progress.json
 python scripts/batch_predict.py --no-resume
 ```
+python3 batch_download_images.py "https://www.chrono24.com/search/index.htm?currencyId=USD&dosearch=true&manufacturerIds=18&maxAgeInDays=0&pageSize=60&redirectToSearchIndex=true&referenceNumber=15407stoo1220st01%2418&sortorder=0" --brand AP --model roak -o downloaded_images_roak --delay 1
 
 ### Force Reprocess
 
@@ -176,6 +177,7 @@ The script automatically uses the best available method for each image:
 - Expected: ~5-10% of images
 
 **All predictions are saved** regardless of fallback level, making it easy to identify which ones need human review.
+
 
 ## Progress Tracking
 

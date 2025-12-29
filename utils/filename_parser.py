@@ -24,6 +24,7 @@ class ImageMetadata:
     quality: Optional[int] # 1, 2, 3, or None
     filename: str          # Original filename
     full_path: str         # Full path to the file
+    model_identifier: Optional[str] = None  # e.g., "nab", "nam" - extracted from watch_id
 
 
 def parse_filename(filepath: str) -> Optional[ImageMetadata]:
@@ -42,13 +43,15 @@ def parse_filename(filepath: str) -> Optional[ImageMetadata]:
     match = re.match(pattern_tagged, filename)
 
     if match:
+        watch_id = match.group(1)
         return ImageMetadata(
-            watch_id=match.group(1),
+            watch_id=watch_id,
             view_number=match.group(2),
             view_type=match.group(3),
             quality=int(match.group(4)),
             filename=filename,
-            full_path=filepath
+            full_path=filepath,
+            model_identifier=extract_model_identifier(watch_id)
         )
 
     # Pattern without quality tag (legacy): PATEK_nab_042_04_face.jpg
@@ -56,13 +59,15 @@ def parse_filename(filepath: str) -> Optional[ImageMetadata]:
     match = re.match(pattern_legacy, filename)
 
     if match:
+        watch_id = match.group(1)
         return ImageMetadata(
-            watch_id=match.group(1),
+            watch_id=watch_id,
             view_number=match.group(2),
             view_type=match.group(3),
             quality=None,
             filename=filename,
-            full_path=filepath
+            full_path=filepath,
+            model_identifier=extract_model_identifier(watch_id)
         )
 
     return None  # Malformed filename
@@ -97,6 +102,35 @@ def extract_watch_id(filename: str) -> Optional[str]:
     pattern = r'^(.+?)_\d{2}_'
     match = re.match(pattern, filename)
     return match.group(1) if match else None
+
+
+def extract_model_identifier(filename: str) -> Optional[str]:
+    """Extract model identifier from filename.
+
+    The model identifier is the short code between the brand and watch number.
+
+    Args:
+        filename: Image filename or watch ID
+
+    Returns:
+        Model identifier (e.g., "nab", "nam") or None if not found
+
+    Examples:
+        >>> extract_model_identifier("PATEK_nab_042_04_face_q3.jpg")
+        "nab"
+        >>> extract_model_identifier("PATEK_nam_001_01_face.jpg")
+        "nam"
+        >>> extract_model_identifier("PATEK_nab_042")
+        "nab"
+    """
+    # Pattern: BRAND_model_number (works for both filenames and watch IDs)
+    # Captures the model identifier (letters between first and second underscore)
+    pattern = r'^[A-Z]+_([a-z]+)_\d+'
+    match = re.match(pattern, filename)
+
+    if match:
+        return match.group(1)
+    return None
 
 
 def get_image_id(filename: str) -> Optional[str]:

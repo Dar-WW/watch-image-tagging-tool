@@ -61,10 +61,10 @@ class HomographyKeypointsPipeline(BasePipeline):
             logger.error(f"Failed to initialize LoFTR matcher: {e}")
             raise
 
-        # Load template
+        # Setup template loader
         template_config = config.get('template', {})
         templates_dir = template_config.get('templates_dir', '../templates')
-        model_name = template_config.get('model', 'nab')
+        self.default_model_name = template_config.get('model', 'nab')
 
         try:
             # Resolve templates directory path
@@ -73,9 +73,11 @@ class HomographyKeypointsPipeline(BasePipeline):
                 base_dir = Path(__file__).parent.parent
                 templates_dir_path = base_dir / templates_dir_path
 
-            template_loader = TemplateLoader(templates_dir_path)
-            self.template_data = template_loader.load_template(model_name=model_name)
-            logger.info(f"Loaded template: {model_name}")
+            self.template_loader = TemplateLoader(templates_dir_path)
+            # Load default template
+            self.template_data = self.template_loader.load_template(model_name=self.default_model_name)
+            self.current_model_name = self.default_model_name
+            logger.info(f"Loaded default template: {self.default_model_name}")
         except Exception as e:
             logger.error(f"Failed to load template: {e}")
             raise
@@ -86,6 +88,28 @@ class HomographyKeypointsPipeline(BasePipeline):
         self.ransac_threshold = config.get('homography', {}).get('ransac_threshold', 5.0)
         self.min_inliers = config.get('homography', {}).get('min_inliers', 10)
         self.confidence_threshold = config.get('confidence_threshold', 0.7)
+
+    def load_template(self, model_name: str) -> None:
+        """Load or reload a template for a specific watch model.
+
+        Args:
+            model_name: Template model name (e.g., "nab", "nam")
+
+        Raises:
+            Exception: If template loading fails
+        """
+        if model_name == self.current_model_name:
+            # Template already loaded
+            logger.debug(f"Template '{model_name}' already loaded, skipping reload")
+            return
+
+        try:
+            self.template_data = self.template_loader.load_template(model_name=model_name)
+            self.current_model_name = model_name
+            logger.info(f"Loaded template: {model_name}")
+        except Exception as e:
+            logger.error(f"Failed to load template '{model_name}': {e}")
+            raise
 
     def _estimate_keypoints_from_obb(
         self,
@@ -179,7 +203,7 @@ class HomographyKeypointsPipeline(BasePipeline):
 
         return KeypointCoords(**keypoints_norm)
 
-    def predict(self, image_path: Path) -> PipelineResult:
+    def predict(self, image_path: Path, template_name: str = None) -> PipelineResult:
         """Run prediction pipeline.
 
         Pipeline:
@@ -190,10 +214,45 @@ class HomographyKeypointsPipeline(BasePipeline):
 
         Args:
             image_path: Path to image file
+            template_name: Optional template model name to use (e.g., "nab", "nam").
+                          If not provided, uses the current template or auto-detects from filename.
 
         Returns:
             PipelineResult with keypoint predictions or error info
         """
+        # Auto-detect template from filename if not provided
+        if template_name is None:
+            try:
+                # Add utils to path if not already there
+                import sys
+                from pathlib import Path as PathLib
+                utils_path = str(PathLib(__file__).parent.parent.parent / "utils")
+                if utils_path not in sys.path:
+                    sys.path.insert(0, utils_path)
+
+                from model_mapper import get_template_from_filename
+                template_name = get_template_from_filename(image_path.name)
+                logger.debug(f"Auto-detected template: {template_name} from {image_path.name}")
+            except Exception as e:
+                logger.warning(f"Failed to auto-detect template: {e}, using current template")
+                template_name = self.current_model_name
+
+        # Load the appropriate template if different from current
+        try:
+            self.load_template(template_name)
+        except Exception as e:
+            logger.error(f"Failed to load template '{template_name}': {e}")
+            return PipelineResult(
+                success=False,
+                keypoints=None,
+                roi=None,
+                confidence=0.0,
+                image_width=None,
+                image_height=None,
+                debug_info={"reason": "template_load_failed", "template": template_name},
+                error_message=f"Template load failed: {e}",
+            )
+
         # 1. Load image
         query_img = cv2.imread(str(image_path))
         if query_img is None:
