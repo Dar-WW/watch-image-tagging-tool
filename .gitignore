@@ -60,3 +60,4 @@ alignment_labels_predicted/
 *.tmp
 export_*.json
 /scripts/outputs/
+/inference-container/app/models/*
