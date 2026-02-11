@@ -1,0 +1,170 @@
+"""Filename parser for watch image tagging.
+
+Handles parsing and generating filenames with the format:
+{WATCH_ID}_{VIEW_NUM}_{VIEW_TYPE}_q{QUALITY}.jpg
+
+Examples:
+    - PATEK_nab_042_04_face_q3.jpg (face view, quality 3)
+    - PATEK_nab_049_06_tiltface_q2.jpg (tiltface view, quality 2)
+    - PATEK_nab_001_03_face.jpg (legacy format without quality)
+"""
+
+import os
+import re
+from dataclasses import dataclass
+from typing import Optional
+
+
+@dataclass
+class ImageMetadata:
+    """Metadata extracted from image filename."""
+    watch_id: str          # e.g., "PATEK_nab_042"
+    view_number: str       # e.g., "04" (keep as string to preserve leading zero)
+    view_type: str         # "face" or "tiltface"
+    quality: Optional[int] # 1, 2, 3, or None
+    filename: str          # Original filename
+    full_path: str         # Full path to the file
+    model_identifier: Optional[str] = None  # e.g., "nab", "nam" - extracted from watch_id
+
+
+def parse_filename(filepath: str) -> Optional[ImageMetadata]:
+    """Parse filename to extract metadata.
+
+    Args:
+        filepath: Full path to the image file
+
+    Returns:
+        ImageMetadata if filename matches expected pattern, None otherwise
+    """
+    filename = os.path.basename(filepath)
+
+    # Pattern with quality tag: PATEK_nab_042_04_face_q3.jpg
+    pattern_tagged = r'^(.+?)_(\d{2})_(face|tiltface)_q([123])\.jpg$'
+    match = re.match(pattern_tagged, filename)
+
+    if match:
+        watch_id = match.group(1)
+        return ImageMetadata(
+            watch_id=watch_id,
+            view_number=match.group(2),
+            view_type=match.group(3),
+            quality=int(match.group(4)),
+            filename=filename,
+            full_path=filepath,
+            model_identifier=extract_model_identifier(watch_id)
+        )
+
+    # Pattern without quality tag (legacy): PATEK_nab_042_04_face.jpg
+    pattern_legacy = r'^(.+?)_(\d{2})_(face|tiltface)\.jpg$'
+    match = re.match(pattern_legacy, filename)
+
+    if match:
+        watch_id = match.group(1)
+        return ImageMetadata(
+            watch_id=watch_id,
+            view_number=match.group(2),
+            view_type=match.group(3),
+            quality=None,
+            filename=filename,
+            full_path=filepath,
+            model_identifier=extract_model_identifier(watch_id)
+        )
+
+    return None  # Malformed filename
+
+
+def generate_filename(metadata: ImageMetadata) -> str:
+    """Generate filename from metadata.
+
+    Args:
+        metadata: Image metadata
+
+    Returns:
+        Filename string with tags
+    """
+    base = f"{metadata.watch_id}_{metadata.view_number}_{metadata.view_type}"
+
+    if metadata.quality is not None:
+        return f"{base}_q{metadata.quality}.jpg"
+    else:
+        return f"{base}.jpg"
+
+
+def extract_watch_id(filename: str) -> Optional[str]:
+    """Extract watch ID from filename.
+
+    Args:
+        filename: Image filename
+
+    Returns:
+        Watch ID if found, None otherwise
+    """
+    pattern = r'^(.+?)_\d{2}_'
+    match = re.match(pattern, filename)
+    return match.group(1) if match else None
+
+
+def extract_model_identifier(filename: str) -> Optional[str]:
+    """Extract model identifier from filename.
+
+    The model identifier is the short code between the brand and watch number.
+
+    Args:
+        filename: Image filename or watch ID
+
+    Returns:
+        Model identifier (e.g., "nab", "nam") or None if not found
+
+    Examples:
+        >>> extract_model_identifier("PATEK_nab_042_04_face_q3.jpg")
+        "nab"
+        >>> extract_model_identifier("PATEK_nam_001_01_face.jpg")
+        "nam"
+        >>> extract_model_identifier("PATEK_nab_042")
+        "nab"
+    """
+    # Pattern: BRAND_model_number (works for both filenames and watch IDs)
+    # Captures the model identifier (letters between first and second underscore)
+    pattern = r'^[A-Z]+_([a-z]+)_\d+'
+    match = re.match(pattern, filename)
+
+    if match:
+        return match.group(1)
+    return None
+
+
+def get_image_id(filename: str) -> Optional[str]:
+    """Extract quality-agnostic image ID from filename.
+
+    This removes the quality tag and file extension, returning just the
+    unique identifier for the image regardless of quality rating.
+
+    Args:
+        filename: Image filename (e.g., "PATEK_nab_041_05_tiltface_q3.jpg")
+
+    Returns:
+        Image ID without quality tag (e.g., "PATEK_nab_041_05")
+        None if filename doesn't match expected pattern
+
+    Examples:
+        >>> get_image_id("PATEK_nab_041_05_tiltface_q3.jpg")
+        "PATEK_nab_041_05"
+        >>> get_image_id("PATEK_nab_041_05_face.jpg")
+        "PATEK_nab_041_05"
+    """
+    # Pattern with quality tag: PATEK_nab_042_04_face_q3.jpg
+    pattern_tagged = r'^(.+?)_(\d{2})_(face|tiltface)_q[123]\.jpg$'
+    match = re.match(pattern_tagged, filename)
+
+    if match:
+        # Return watch_id + view_number (e.g., "PATEK_nab_041_05")
+        return f"{match.group(1)}_{match.group(2)}"
+
+    # Pattern without quality tag (legacy): PATEK_nab_042_04_face.jpg
+    pattern_legacy = r'^(.+?)_(\d{2})_(face|tiltface)\.jpg$'
+    match = re.match(pattern_legacy, filename)
+
+    if match:
+        return f"{match.group(1)}_{match.group(2)}"
+
+    return None  # Malformed filename
