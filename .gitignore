@@ -41,14 +41,16 @@ labelstudio/*.log
 labelstudio/export_*.json
 labelstudio/tasks_*.json
 
-# Predictions
-/alignment_labels_predicted/*
+# Data directories
+downloaded_images/
+alignment_labels/
+alignment_labels_predicted/
 
 # Jupyter Notebook
 .ipynb_checkpoints
 
 # Trash folder (deleted images)
-downloaded_images/.trash/
+../FPJ-WatchId-POC/data/aligned/nab/downloaded_images/.trash/
 
 # Environment variables
 .env
