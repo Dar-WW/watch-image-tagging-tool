@@ -88,3 +88,4 @@ print(f'Annotation image_size: {data[\"image_size\"]}')
 
 Both should report `832 × 832`.
 
+

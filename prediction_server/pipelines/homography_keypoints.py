@@ -479,21 +479,16 @@ class HomographyKeypointsPipeline(BasePipeline):
             y_rotated = y_phase1 / transform_params["scale_y"]
 
             # Step 2: UnRotate (Rotated → Cropped space)
-            # The forward rotation was around crop_center with angle -rotation_deg
-            # So inverse is rotation around same center with angle +rotation_deg
-            crop_center_x, crop_center_y = transform_params["crop_center"]
-            rotation_deg = transform_params["rotation_deg"]
+            # Use cv2.invertAffineTransform to properly invert the rotation matrix
+            # (manual rotation math introduces numerical errors)
+            rotation_matrix = np.array(transform_params["rotation_matrix"])  # 2x3 matrix
+            rotation_matrix_inv = cv2.invertAffineTransform(rotation_matrix)
 
-            # Translate to origin
-            x_centered = x_rotated - crop_center_x
-            y_centered = y_rotated - crop_center_y
-
-            # Rotate by +rotation_deg (inverse of forward -rotation_deg)
-            angle_rad = np.radians(rotation_deg)
-            cos_a = np.cos(angle_rad)
-            sin_a = np.sin(angle_rad)
-            x_cropped = cos_a * x_centered - sin_a * y_centered + crop_center_x
-            y_cropped = sin_a * x_centered + cos_a * y_centered + crop_center_y
+            # Apply inverse transformation
+            pt_rotated = np.array([x_rotated, y_rotated, 1.0])
+            pt_cropped = rotation_matrix_inv @ pt_rotated
+            x_cropped = pt_cropped[0]
+            y_cropped = pt_cropped[1]
 
             # Step 3: UnCrop (Cropped → Original space)
             x1, y1, x2, y2 = transform_params["crop_box"]

@@ -229,7 +229,7 @@ def main():
     parser.add_argument(
         "--input-dir",
         type=Path,
-        default=Path("../alignment_labels"),
+        default=Path("../../FPJ-WatchId-POC/data/aligned/nab/alignment_labels"),
         help="Directory containing internal annotation JSON files",
     )
     parser.add_argument(

@@ -33,9 +33,9 @@ pipeline:
   # Template Configuration
   template:
     templates_dir: templates  # Mounted at /app/templates in Docker, ../templates for local dev
-    model: "sant"  # Default template (used on initialization, then auto-detected per image)
+    model: "roakpnd"  # Default template (used on initialization, then auto-detected per image)
     # Templates are automatically selected based on watch model identifier in filename
-    # Supported models: nab (Nautilus), nam (Nautilus Moonphase)
+    # Supported models: nab (Nautilus Blue), nam (Nautilus Moonphase)
     # Add new models by creating templates/{model_name}/ directory with template.jpeg and annotations.json
 
 cache:

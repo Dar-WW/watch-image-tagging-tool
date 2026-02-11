@@ -114,10 +114,14 @@ class LoFTRMatcher:
             }
             correspondences = self.matcher(input_dict)
 
-        # Extract matches
+        # Extract matches and convert to numpy immediately
         mkpts0 = correspondences['keypoints0'].cpu().numpy()  # Query keypoints
         mkpts1 = correspondences['keypoints1'].cpu().numpy()  # Template keypoints
         mconf = correspondences['confidence'].cpu().numpy()   # Match confidence
+
+        # Clean up tensors to free memory
+        del query_tensor, template_tensor, input_dict, correspondences
+        torch.cuda.empty_cache() if torch.cuda.is_available() else None
 
         # Filter by confidence
         mask = mconf > match_threshold

@@ -6,15 +6,18 @@ YOLO + LoFTR + Homography pipeline, and saves predictions to
 alignment_labels_predicted/ directory in the same format as alignment_labels/.
 
 Features:
-- Automatically deletes low quality (q1) images before processing
+- Optional cleanup: Delete low quality (q1) images and watches with <2 images (--cleanup flag)
 - Resumable processing with progress tracking
 - Three-tier fallback strategy (full → pipeline → geometric)
 - Serial processing to avoid CPU overload
 - Comprehensive logging and error handling
 
 Usage:
-    # Basic usage - process all new images (deletes q1 images first)
+    # Basic usage - process all new images
     python scripts/batch_predict.py
+
+    # Clean up low quality images before processing
+    python scripts/batch_predict.py --cleanup
 
     # Test on single watch model
     python scripts/batch_predict.py --watch-id PATEK_nab_001
@@ -27,8 +30,10 @@ Usage:
 """
 
 import argparse
+import gc
 import json
 import logging
+import shutil
 import signal
 import sys
 import time
@@ -221,6 +226,53 @@ class ImageScanner:
         logger.info(f"Deleted {deleted_count} low quality images")
         return deleted_count
 
+    def delete_watches_with_few_images(self, min_images: int = 2) -> Tuple[int, int]:
+        """Delete watch directories with fewer than minimum images.
+
+        Args:
+            min_images: Minimum number of images required (default: 2)
+
+        Returns:
+            Tuple of (watches_deleted, images_deleted)
+        """
+        logger.info(f"Scanning for watches with < {min_images} images...")
+
+        if not self.images_dir.exists():
+            logger.error(f"Images directory not found: {self.images_dir}")
+            return 0, 0
+
+        watches_deleted = 0
+        images_deleted = 0
+
+        for watch_dir in sorted(self.images_dir.iterdir()):
+            if not watch_dir.is_dir():
+                continue
+
+            # Count face/tiltface images only (skip back views)
+            face_images = [
+                img for img in watch_dir.glob("*.jpg")
+                if self._is_face_or_tiltface(img.name)
+            ]
+
+            if len(face_images) < min_images:
+                logger.info(f"Deleting watch directory with only {len(face_images)} image(s): {watch_dir.name}")
+
+                # Count all images (including non-face) for reporting
+                all_images = list(watch_dir.glob("*.jpg"))
+                total_images_in_dir = len(all_images)
+
+                # Delete the entire directory
+                try:
+                    shutil.rmtree(watch_dir)
+                    watches_deleted += 1
+                    images_deleted += total_images_in_dir
+                    logger.info(f"  Deleted {watch_dir.name} ({total_images_in_dir} total images)")
+                except Exception as e:
+                    logger.error(f"Failed to delete {watch_dir}: {e}")
+
+        logger.info(f"Deleted {watches_deleted} watch directories ({images_deleted} total images)")
+        return watches_deleted, images_deleted
+
     def scan_images(self, skip_existing: bool = True, watch_id_filter: Optional[str] = None) \
             -> List[Tuple[Path, str, str]]:
         """Scan for images to process.
@@ -409,6 +461,20 @@ class PredictionRunner:
             logger.error(f"Exception during prediction for {image_path.name}: {e}")
             annotation = self._generate_geometric_fallback((img_w, img_h), image_path.name)
             return annotation, "ml-model-v1.0-geometric-fallback"
+        finally:
+            # Critical: Clean up memory after each prediction
+            del img
+            gc.collect()
+
+            # Clear torch cache if using GPU/MPS
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+                    torch.mps.empty_cache()
+            except Exception:
+                pass
 
     def _extract_keypoints(self, result: PipelineResult, img_w: int, img_h: int,
                           filename: str) -> dict:
@@ -517,6 +583,10 @@ class PredictionSaver:
             if not self._save_watch_file(watch_id, annotations):
                 success = False
 
+        # Clear predictions from memory after saving to reduce RAM usage
+        self.predictions.clear()
+        gc.collect()
+
         return success
 
     def _save_watch_file(self, watch_id: str, new_annotations: dict) -> bool:
@@ -561,7 +631,7 @@ class BatchProcessor:
     def __init__(self, images_dir: Path, output_dir: Path, labels_dir: Path,
                  config_path: Path, device: str = "auto", resume: bool = True,
                  force: bool = False, watch_id: Optional[str] = None,
-                 checkpoint_freq: int = 10):
+                 checkpoint_freq: int = 10, cleanup: bool = False):
         """Initialize batch processor.
 
         Args:
@@ -574,6 +644,7 @@ class BatchProcessor:
             force: Force reprocess all images (ignore existing)
             watch_id: Only process this watch ID (optional)
             checkpoint_freq: Save progress every N images
+            cleanup: Delete low quality images and watches with <2 images
         """
         self.images_dir = images_dir
         self.output_dir = output_dir
@@ -584,6 +655,7 @@ class BatchProcessor:
         self.force = force
         self.watch_id = watch_id
         self.checkpoint_freq = checkpoint_freq
+        self.cleanup = cleanup
 
         # Components
         self.progress = ProgressManager()
@@ -606,13 +678,19 @@ class BatchProcessor:
 
         self.start_time = time.time()
 
-        # Delete low quality images before processing
-        logger.info("\nStep 1: Removing low quality images...")
-        deleted_count = self.scanner.delete_low_quality_images(quality_threshold=1)
-        logger.info(f"Removed {deleted_count} quality 1 images\n")
+        # Delete low quality images and watches with few images (only if --cleanup flag is set)
+        if self.cleanup:
+            logger.info("\nStep 1: Removing low quality images...")
+            deleted_count = self.scanner.delete_low_quality_images(quality_threshold=1)
+            logger.info(f"Removed {deleted_count} quality 1 images\n")
+
+            logger.info("Step 2: Removing watches with fewer than 2 images...")
+            watches_deleted, images_deleted = self.scanner.delete_watches_with_few_images(min_images=2)
+            logger.info(f"Removed {watches_deleted} watches ({images_deleted} images)\n")
 
         # Scan for images to process
-        logger.info("Step 2: Scanning for images to process...")
+        step_num = 3 if self.cleanup else 1
+        logger.info(f"Step {step_num}: Scanning for images to process...")
         skip_existing = not self.force
         images_to_process = self.scanner.scan_images(
             skip_existing=skip_existing,
@@ -781,6 +859,9 @@ Examples:
   # Process all new images
   python scripts/batch_predict.py
 
+  # Clean up low quality images before processing
+  python scripts/batch_predict.py --cleanup
+
   # Test on single watch model
   python scripts/batch_predict.py --watch-id PATEK_nab_001
 
@@ -851,8 +932,13 @@ Examples:
     parser.add_argument(
         "--checkpoint-freq",
         type=int,
-        default=10,
-        help="Save progress every N images (default: 10)"
+        default=5,
+        help="Save progress every N images (default: 5, reduce for better memory management)"
+    )
+    parser.add_argument(
+        "--cleanup",
+        action="store_true",
+        help="Delete low quality images (q1) and watches with fewer than 2 images before processing"
     )
 
     return parser.parse_args()
@@ -881,7 +967,8 @@ def main():
         resume=args.resume,
         force=args.force,
         watch_id=args.watch_id,
-        checkpoint_freq=args.checkpoint_freq
+        checkpoint_freq=args.checkpoint_freq,
+        cleanup=args.cleanup
     )
 
     # Run batch processing
