@@ -1,12 +1,8 @@
 FROM python:3.11-slim
 
-# Install system dependencies for OpenCV
+# Install system dependencies for OpenCV headless
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgl1-mesa-glx \
     libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender1 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/ml
@@ -16,8 +12,13 @@ RUN pip install --no-cache-dir \
     torch torchvision --index-url https://download.pytorch.org/whl/cpu
 
 # Install remaining Python dependencies
+# ultralytics pulls in opencv-python (full), so we uninstall it and
+# force-reinstall opencv-python-headless which provides the same cv2 module
+# without requiring libGL.
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip uninstall -y opencv-python 2>/dev/null; true
+RUN pip install --no-cache-dir --force-reinstall opencv-python-headless
 
 # Pre-download LoFTR weights so they're cached in the image
 COPY build_scripts/ build_scripts/
@@ -40,4 +41,9 @@ ENV LOG_LEVEL=INFO
 
 EXPOSE 8080
 
-CMD ["uvicorn", "app.server:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1"]
+# SageMaker invokes the container with `docker run <image> serve`
+# Use an entrypoint script that accepts "serve" and starts uvicorn
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

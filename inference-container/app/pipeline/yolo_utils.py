@@ -21,7 +21,8 @@ class YOLODetector:
         self,
         checkpoint_path: str,
         conf_threshold: float = 0.25,
-        device: str = "auto"
+        device: str = "auto",
+        imgsz: int = 416
     ):
         """
         Initialize YOLO detector.
@@ -30,6 +31,7 @@ class YOLODetector:
             checkpoint_path: Path to trained YOLO-OBB model (.pt file)
             conf_threshold: Confidence threshold for detection (0-1)
             device: Device to use ("auto", "cuda", "mps", "cpu")
+            imgsz: Image size for inference (must match training size)
 
         Raises:
             ImportError: If ultralytics is not installed
@@ -67,6 +69,7 @@ class YOLODetector:
 
         self.device = device
         self.conf_threshold = conf_threshold
+        self.imgsz = imgsz
 
         # Load YOLO model
         self.model = YOLO(str(checkpoint_path))
@@ -103,12 +106,11 @@ class YOLODetector:
         """
         try:
             # Run YOLO inference
-            # imgsz=640 is the default YOLO training resolution
             results = self.model.predict(
                 source=image_bgr,
                 conf=self.conf_threshold,
                 iou=0.45,  # IoU threshold for NMS
-                imgsz=640,  # Image size for inference (must match training size)
+                imgsz=self.imgsz,  # Image size for inference (configured via PipelineConfig)
                 device=self.device,
                 verbose=False
             )

@@ -17,11 +17,13 @@ class PipelineConfig:
     yolo_conf_threshold: float = 0.05
     yolo_padding_factor: float = 1.5
     yolo_device: str = "cpu"
+    yolo_imgsz: int = 416
 
     # LoFTR configuration
     loftr_weights: str = "outdoor"
     loftr_device: str = "cpu"
     loftr_match_threshold: float = 0.2
+    loftr_max_image_size: int = 416
 
     # Homography configuration
     ransac_threshold: float = 5.0
@@ -29,7 +31,7 @@ class PipelineConfig:
 
     # Template configuration
     templates_dir: str = "templates"
-    default_model: str = "nab"
+    default_model: str = "mil"
 
     # Pipeline confidence threshold
     confidence_threshold: float = 0.7
@@ -57,11 +59,13 @@ class PipelineConfig:
                 "conf_threshold": self.yolo_conf_threshold,
                 "padding_factor": self.yolo_padding_factor,
                 "device": self.yolo_device,
+                "imgsz": self.yolo_imgsz,
             },
             "loftr": {
                 "weights": self.loftr_weights,
                 "device": self.loftr_device,
                 "match_threshold": self.loftr_match_threshold,
+                "max_image_size": self.loftr_max_image_size,
             },
             "homography": {
                 "ransac_threshold": self.ransac_threshold,

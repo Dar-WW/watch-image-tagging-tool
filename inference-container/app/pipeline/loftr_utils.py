@@ -24,13 +24,19 @@ class LoFTRMatcher:
     between query and template images for accurate homography estimation.
     """
 
-    def __init__(self, weights: str = "outdoor", device: Optional[str] = None):
+    def __init__(
+        self,
+        weights: str = "outdoor",
+        device: Optional[str] = None,
+        max_image_size: int = 416
+    ):
         """
         Initialize LoFTR matcher.
 
         Args:
             weights: Pretrained weights to use ("outdoor" or "indoor")
             device: Device to use ("cuda", "mps", "cpu", or None for auto-detect)
+            max_image_size: Max dimension for LoFTR input (limits memory usage)
 
         Raises:
             ImportError: If kornia is not installed
@@ -52,6 +58,7 @@ class LoFTRMatcher:
 
         self.device = torch.device(device)
         self.weights = weights
+        self.max_image_size = max_image_size
 
         # Load LoFTR model
         print(f"Loading LoFTR model (weights={weights}, device={device})...")
@@ -84,27 +91,55 @@ class LoFTRMatcher:
 
         return tensor
 
+    @staticmethod
+    def _resize_for_loftr(
+        image_bgr: np.ndarray, max_size: int
+    ) -> Tuple[np.ndarray, float]:
+        """Resize image so the longest side is max_size. Returns (resized, scale)."""
+        h, w = image_bgr.shape[:2]
+        longest = max(h, w)
+        if longest <= max_size:
+            return image_bgr, 1.0
+        scale = max_size / longest
+        new_w = int(w * scale)
+        new_h = int(h * scale)
+        resized = cv2.resize(image_bgr, (new_w, new_h), interpolation=cv2.INTER_AREA)
+        return resized, scale
+
     def find_correspondences(
         self,
         query_bgr: np.ndarray,
         template_bgr: np.ndarray,
-        match_threshold: float = 0.2
+        match_threshold: float = 0.2,
+        max_image_size: Optional[int] = None,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Find dense correspondences between query and template.
+
+        Images larger than max_image_size are downscaled before matching,
+        and returned keypoint coordinates are mapped back to original resolution.
 
         Args:
             query_bgr: Query image (BGR)
             template_bgr: Template image (BGR)
             match_threshold: Confidence threshold for filtering matches
+            max_image_size: Max dimension for LoFTR input (overrides instance default if provided)
 
         Returns:
             Tuple of (query_keypoints, template_keypoints, match_confidences)
             Each is an array of shape (N, 2) or (N,)
         """
+        # Use instance default if not provided
+        if max_image_size is None:
+            max_image_size = self.max_image_size
+
+        # Resize to limit memory usage (LoFTR attention is O(n^2) on pixels)
+        query_resized, q_scale = self._resize_for_loftr(query_bgr, max_image_size)
+        template_resized, t_scale = self._resize_for_loftr(template_bgr, max_image_size)
+
         # Preprocess
-        query_tensor = self.preprocess_image(query_bgr)
-        template_tensor = self.preprocess_image(template_bgr)
+        query_tensor = self.preprocess_image(query_resized)
+        template_tensor = self.preprocess_image(template_resized)
 
         # Run LoFTR
         with torch.no_grad():
@@ -121,7 +156,12 @@ class LoFTRMatcher:
 
         # Clean up tensors to free memory
         del query_tensor, template_tensor, input_dict, correspondences
-        torch.cuda.empty_cache() if torch.cuda.is_available() else None
+
+        # Scale keypoints back to original image resolution
+        if q_scale != 1.0:
+            mkpts0 = mkpts0 / q_scale
+        if t_scale != 1.0:
+            mkpts1 = mkpts1 / t_scale
 
         # Filter by confidence
         mask = mconf > match_threshold

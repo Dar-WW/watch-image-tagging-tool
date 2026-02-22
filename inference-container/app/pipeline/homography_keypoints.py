@@ -44,7 +44,8 @@ class HomographyKeypointsPipeline(BasePipeline):
             self.yolo_detector = YOLODetector(
                 checkpoint_path=yolo_config.get('checkpoint_path', 'models/yolo_watch_face_best.pt'),
                 conf_threshold=yolo_config.get('conf_threshold', 0.25),
-                device=yolo_config.get('device', 'auto')
+                device=yolo_config.get('device', 'auto'),
+                imgsz=yolo_config.get('imgsz', 416)
             )
         except Exception as e:
             logger.error(f"Failed to initialize YOLO detector: {e}")
@@ -55,7 +56,8 @@ class HomographyKeypointsPipeline(BasePipeline):
         try:
             self.loftr_matcher = LoFTRMatcher(
                 weights=loftr_config.get('weights', 'outdoor'),
-                device=loftr_config.get('device', 'auto')
+                device=loftr_config.get('device', 'auto'),
+                max_image_size=loftr_config.get('max_image_size', 416)
             )
         except Exception as e:
             logger.error(f"Failed to initialize LoFTR matcher: {e}")

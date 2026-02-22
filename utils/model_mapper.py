@@ -18,7 +18,7 @@ from typing import Optional
 
 
 # Default template to use if model cannot be determined
-DEFAULT_TEMPLATE = "nab"
+DEFAULT_TEMPLATE = "mil"
 
 # Cache for template directory
 _TEMPLATES_DIR = None
