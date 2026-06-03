@@ -8,6 +8,15 @@ This is a Label Studio-based annotation tool for watch image keypoint labeling. 
 
 **Multi-Model Support:** The system now supports multiple watch models with different face shapes. Templates are automatically selected based on the watch model identifier in the filename (e.g., "nab" for Nautilus, "nam" for Nautilus Moonphase).
 
+## Cross-repo touchpoints
+
+What this tool exchanges with other repos, and where the contract lives:
+
+- **Image input format** ← `kairos-photobooth` writes Canon photography sessions to `{BRAND}_{MODEL}_{WATCH_NUM}/` directories with filename `{BRAND}_{MODEL}_{WATCH_NUM}_{VIEW_NUM}_{VIEW_TYPE}_q{QUALITY}.jpg`. Parsed here by `utils/filename_parser.py`. Filename schema changes require coordinating with `kairos-photobooth`'s `watch_id_template` / `filename_template`.
+- **Annotation output format** → JSON files in `alignment_labels/`, one per watch *model*, keyed by quality-agnostic image ID (e.g. `PATEK_nab_001_01`), with normalized [0,1] coords for 5 keypoints (top/right/bottom/left/center). Consumed by `FPJ-WatchId-POC` as `data/aligned/{model}/annotations/` for training data preparation (notebook 08). The per-watch-model granularity here differs from FPJ's per-watch granularity — a translation step lives between the two repos; preserve the 5-keypoint schema and normalized-coord convention when changing either side.
+- **Model template registry** — `MODEL_TEMPLATE_MAP` in `utils/model_mapper.py` mirrors the `alignment/templates/{model}/` set in `FPJ-WatchId-POC`. Adding a new watch model (e.g. a new Rolex family) means registering it in BOTH repos AND providing matching `templates/{model}/template.jpeg` + `templates/{model}/annotations.json` in each.
+- **Keypoint semantics** (top=12H, right=3H, bottom=6H, left=9H, center=hand pinion) → shared with `FPJ-WatchId-POC` (runtime alignment) and `Kairos-WatchId-Demo`'s alignment UX (5 anchor points on the verify page). Changing the meaning or count of keypoints cascades through all three repos.
+
 ## Key Commands
 
 ### Label Studio Operations
