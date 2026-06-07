@@ -52,8 +52,15 @@ aws s3 cp \
 ```bash
 # Assumes miniforge / miniconda is installed and there is no fpj-watchid-poc env yet.
 # Create the env. If it already exists from the FPJ-WatchId-POC setup, just install the extra deps below.
-conda env create -f ../FPJ-WatchId-POC/environment.yml  # if not already
+#
+# IMPORTANT: environment.yml pins python=3.9, but face_clf.joblib was pickled by
+# scikit-learn 1.9.0, which needs python >= 3.11 — loading it under an older
+# sklearn fails with `AttributeError: ... no attribute 'multi_class'`.
+# Override the python pin when creating the env:
+sed 's/python=3.9/python=3.11/' ../FPJ-WatchId-POC/environment.yml > /tmp/environment_py311.yml
+conda env create -f /tmp/environment_py311.yml
 conda activate fpj-watchid-poc
+pip install "scikit-learn==1.9.0"
 
 # Scrape pipeline (selenium-based)
 pip install selenium webdriver_manager requests

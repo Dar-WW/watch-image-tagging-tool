@@ -75,7 +75,7 @@ def main() -> None:
     ap.add_argument("--scrape-dir", type=Path, required=True,
                     help="dir containing raw scraped listings (e.g., scripts/outputs/pretrain_dayt_116500LN)")
     ap.add_argument("--yolo-weights", type=Path,
-                    default=Path("/Users/dhayun/ww-repos/Kairos-Workspace/WatchMLProjects/FPJ-WatchId-POC/models/yolo_obb_best.pt"))
+                    default=REPO_ROOT.parent / "FPJ-WatchId-POC/models/yolo_obb_best.pt")
     ap.add_argument("--face-clf", type=Path,
                     default=REPO_ROOT / "scripts/outputs/face_clf.joblib")
     ap.add_argument("--brand", required=True, help="e.g. ROLEX")
