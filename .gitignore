@@ -59,5 +59,9 @@ alignment_labels_predicted/
 # Temporary export files
 *.tmp
 export_*.json
-/scripts/outputs/
+# Scripts outputs: ignore everything except the small artifacts we version.
+/scripts/outputs/*
+!/scripts/outputs/.gitignore
+!/scripts/outputs/face_clf.joblib
+!/scripts/outputs/labels_manifest.json
 /inference-container/app/models/*
