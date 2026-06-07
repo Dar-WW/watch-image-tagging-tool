@@ -16,15 +16,35 @@ corpus build on a different Mac.
 
 ## Step-by-step on the new Mac
 
-### 1. Pull the branch
+### 1. Pull the branch + sync submodules
 
 ```bash
 cd ~/ww-repos/Kairos-Workspace
 git submodule update --init --recursive
+
+# Pull the latest agent-tools so the new ml-experiments skill is present
+git submodule update --remote agent-tools
+
+# Reinstall skills so ml-experiments lands in ~/.claude/skills/
+./agent-tools/scripts/setup.sh
+
+# Switch the tagging-tool submodule to the corpus branch
 cd WatchMLProjects/watch-image-tagging-tool
 git fetch origin
 git checkout feat/watch-domain-pretrain-corpus
 git pull
+```
+
+### 1b. Pull the 013 design spec from S3
+
+The FPJ-WatchId-POC repo has `*.md` in `.gitignore` (experiments are
+intentionally local-only), so the design spec for this work is
+distributed via S3 rather than git:
+
+```bash
+aws s3 cp \
+  s3://watchid-fpj-ml-data/pretrain-corpus/v1/experiments/013-watch-domain-pretrain-design.md \
+  ~/ww-repos/Kairos-Workspace/WatchMLProjects/FPJ-WatchId-POC/experiments/
 ```
 
 ### 2. Set up the conda env
