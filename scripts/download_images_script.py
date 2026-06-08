@@ -96,7 +96,8 @@ def download_image(img_url: str, dest_dir: str, cookies: dict[str, str], filenam
     print(f"  ✓ Saved {filename} ({total} bytes)")
 
 
-def process_listing(driver, url: str, base_out_dir: str, brand: str, model: str):
+def process_listing(driver, url: str, base_out_dir: str, brand: str, model: str,
+                    max_per_listing: int | None = None):
     """
     Process a Chrono24 listing and download all high-res images.
 
@@ -164,6 +165,13 @@ def process_listing(driver, url: str, base_out_dir: str, brand: str, model: str)
 
     normalised = sorted(set(normalised))
 
+    # Cap images per listing to favour cross-instance breadth over redundant
+    # near-duplicate shots of the same watch. The downstream face filter
+    # discards ~50% anyway, so pull a few extra above the desired net.
+    if max_per_listing is not None and len(normalised) > max_per_listing:
+        print(f"  Capping {len(normalised)} → {max_per_listing} images for this listing")
+        normalised = normalised[:max_per_listing]
+
     # Build a cookies dict from the browser session
     cookie_dict = {c["name"]: c["value"] for c in driver.get_cookies()}
 
@@ -226,6 +234,12 @@ Examples:
         default=None,
         help="Base output directory (default: scripts/outputs/downloaded_images_{model})",
     )
+    parser.add_argument(
+        "--max-per-listing",
+        type=int,
+        default=None,
+        help="Cap images downloaded per listing (default: unlimited). Favours breadth.",
+    )
     args = parser.parse_args()
 
     # Validate and normalize inputs
@@ -255,7 +269,8 @@ Examples:
     )
 
     try:
-        process_listing(driver, args.url, args.out_dir, brand, model)
+        process_listing(driver, args.url, args.out_dir, brand, model,
+                        max_per_listing=args.max_per_listing)
     finally:
         driver.quit()
 

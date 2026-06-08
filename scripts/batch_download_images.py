@@ -159,6 +159,7 @@ def run_downloader_for_listing(
     model: str,
     out_dir: str,
     instance: str | None = None,
+    max_per_listing: int | None = None,
 ) -> tuple[int, str | None]:
     """
     Invoke download_images_script.py as a subprocess for a single listing.
@@ -179,6 +180,8 @@ def run_downloader_for_listing(
     ]
     if instance:
         cmd.extend(["--instance", instance])
+    if max_per_listing is not None:
+        cmd.extend(["--max-per-listing", str(max_per_listing)])
 
     print(f"\n=== Downloading listing ===\n{url}\nCommand: {' '.join(cmd)}")
     proc = subprocess.run(cmd, capture_output=True, text=True)
@@ -280,6 +283,12 @@ def main() -> None:
         "--try-all-sortorders",
         action="store_true",
         help="Try all valid sortorder values (0, 1, 11, 5, 15) to maximize listing discovery.",
+    )
+    parser.add_argument(
+        "--max-per-listing",
+        type=int,
+        default=None,
+        help="Cap images downloaded per listing (default: unlimited). Favours cross-instance breadth.",
     )
     args = parser.parse_args()
 
@@ -406,6 +415,7 @@ def main() -> None:
             model=model,
             out_dir=args.out_dir,
             instance=None,
+            max_per_listing=args.max_per_listing,
         )
 
         if rc == 0:
