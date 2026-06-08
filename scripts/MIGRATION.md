@@ -158,6 +158,19 @@ output dir) make `batch_download_images.py` idempotent — re-running the
 same command with the same `-o` path picks up where it left off, skipping
 already-downloaded listings.
 
+## Resource ceiling (avoid OOM)
+
+Both stages are memory-heavy: each headless-Chrome scraper holds ~1-2 GB,
+and `process_scrape.py` spikes a few GB on MPS during the DINOv2 pass
+(unified memory — it competes with everything else on an Apple-silicon Mac).
+
+**Cap concurrency at 2 heavy ops, and never mix tiers.** Run 2 scrapers OR
+2 filters — but do **not** stack a `process_scrape.py` filter on top of
+running scrapers. A session that ran 4 parallel scrapers + 2 concurrent
+DINO filters froze the Mac (OOM). One scraper or one filter alone is always
+safe; `--device cpu` avoids the MPS burst entirely if headroom is tight.
+Use `--max-per-listing N` to cut per-scrape volume (see "Scaling up").
+
 ## Resuming the corpus build
 
 Round-2 resume commands (from `watch-image-tagging-tool/`):
